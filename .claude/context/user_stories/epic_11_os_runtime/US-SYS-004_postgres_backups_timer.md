@@ -29,7 +29,7 @@
   - Units in `infra/systemd/`: oneshot service and timer (`OnCalendar` via variable, `Persistent=true`, `RandomizedDelaySec`).
   - **Verification:** `systemctl list-timers` shows the next trigger and `systemctl start autoops-backup` creates a backup.
 
-- [ ] **AC-3: Retention and Failure Alerts**
+- [x] **AC-3: Retention and Failure Alerts**
   - Rotation by age/count (`BACKUP_RETENTION_DAYS`), deleting only files matching the name pattern. Non-zero exit on failure so systemd records it as `failed`.
   - **Verification:** with reduced retention, old dumps are deleted and recent ones are kept.
 
