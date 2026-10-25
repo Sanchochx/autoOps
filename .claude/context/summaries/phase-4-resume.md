@@ -15,7 +15,7 @@
 | US-SYS-002 Docker Engine and hardened `daemon.json` | 11 | `1a037a4` |
 | US-SYS-003 systemd service for the stack | 11 | `c2ea9e0` |
 | US-SYS-004 PostgreSQL backups with systemd timer | 11 | `10a5d56` |
-| US-PROV-001 Idempotent bootstrap and host verification | 12 | see `git log` (PROV-001) |
+| US-PROV-001 Idempotent bootstrap and host verification | 12 | `7cd50ca` |
 
 ---
 
