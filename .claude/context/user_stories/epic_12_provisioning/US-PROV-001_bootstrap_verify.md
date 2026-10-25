@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 8 pts
 **Dependencies:** US-HOST-001, US-HOST-002, US-HOST-003, US-NET-001, US-NET-002, US-SYS-001, US-SYS-002, US-SYS-003, US-SYS-004
-**Status:** Pending
+**Status:** In progress
 
 ---
 
@@ -25,11 +25,11 @@
   - Critical order: key-based SSH and UFW (allowing SSH) before closing off access; `45_docker_ufw` after Docker.
   - **Verification:** full run on the clean VM without errors.
 
-- [ ] **AC-2: Idempotency and Documented Variables**
+- [x] **AC-2: Idempotency and Documented Variables**
   - Template `scripts/provision/provision.env.example` with all variables (admin, keys, CIDR, ports, backups) and a description; no secrets in the repository.
   - **Verification:** a second bootstrap run produces no changes ("no changes" output) or errors.
 
-- [ ] **AC-3: Unified `verify.sh`**
+- [x] **AC-3: Unified `verify.sh`**
   - `scripts/provision/verify.sh` runs all `checks/*.sh`, prints an `OK`/`FAIL` table per control and returns a non-zero code if anything fails.
   - **Verification:** passes on the provisioned VM and fails when a control is manually altered (e.g. `PasswordAuthentication yes` or `ufw disable`).
 

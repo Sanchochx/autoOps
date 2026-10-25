@@ -21,8 +21,8 @@
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             23                         │
 │  ✅ Completed:                   22                         │
-│  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    1                          │
+│  ⏳ In Progress:                 1                          │
+│  ⏸️  Pending:                    0                          │
 │                                                             │
 │  Progress: [█████████░] 96% (22/23)                          │
 └─────────────────────────────────────────────────────────────┘
@@ -55,7 +55,7 @@
 | 09 | Host Access & Identity | HOST | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
-| 12 | Provisioning | PROV | 1 | 0 | 0 | 1 | [░░░░░░░░░░] 0% |
+| 12 | Provisioning | PROV | 1 | 0 | 1 | 0 | [░░░░░░░░░░] 0% |
 
 ---
 
@@ -370,7 +370,7 @@
 
 ### User Stories
 
-#### [ ] US-PROV-001: Idempotent Bootstrap and Host Verification
+#### [~] US-PROV-001: Idempotent Bootstrap and Host Verification
 - **File:** `context/user_stories/epic_12_provisioning/US-PROV-001_bootstrap_verify.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts
