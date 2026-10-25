@@ -84,7 +84,11 @@ fi
 if [[ $AUTOOPS_ENABLE == 1 ]]; then
   systemctl is-enabled --quiet autoops-backup.timer || { systemctl enable --now autoops-backup.timer >/dev/null 2>&1; log_change "autoops-backup.timer habilitado"; }
 fi
-# autoops-migrate must never be enabled.
-! systemctl is-enabled --quiet autoops-migrate 2>/dev/null || { systemctl disable autoops-migrate >/dev/null 2>&1; log_change "autoops-migrate deshabilitado"; }
+# autoops-migrate must never be enabled. A unit without [Install] reports "static" and `is-enabled`
+# exits 0 for it, so compare the state text instead of the exit code.
+if [[ "$(systemctl is-enabled autoops-migrate 2>/dev/null || true)" == enabled ]]; then
+  systemctl disable autoops-migrate >/dev/null 2>&1
+  log_change "autoops-migrate deshabilitado"
+fi
 
 log_info "70_systemd.sh finalizado. Arranque manual: sudo systemctl start autoops"

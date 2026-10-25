@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# US-PROV-001 (AC-1): provisions a clean Ubuntu Server 24.04 end to end. Idempotent.
+# US-PROV-001 (AC-1): provisions a clean Ubuntu Server 26.04 end to end. Idempotent.
 #
 #   sudo ADMIN_USER=<user> ADMIN_SSH_PUBKEY_FILE=<path.pub> FAIL2BAN_IGNOREIP="<IP/CIDR ...>" \
 #     ./scripts/provision/bootstrap.sh [--env-file <provision.env>] [--confirm-ssh]
@@ -49,8 +49,8 @@ require_root
 
 os_id="$(. /etc/os-release 2>/dev/null && echo "${ID:-}")"
 os_version="$(. /etc/os-release 2>/dev/null && echo "${VERSION_ID:-}")"
-[[ $os_id == ubuntu && $os_version == 24.04 ]] \
-  || die "Sistema no soportado: '${os_id:-?} ${os_version:-?}'. Se requiere Ubuntu 24.04."
+[[ $os_id == ubuntu && $os_version == 26.04 ]] \
+  || die "Sistema no soportado: '${os_id:-?} ${os_version:-?}'. Se requiere Ubuntu 26.04."
 [[ -d /run/systemd/system ]] || die "systemd no está activo en este sistema."
 
 missing=()
@@ -90,8 +90,10 @@ changes="$(grep -c '^\[CAMBIO\]' "$RUN_LOG" || true)"
 
 if ((CONFIRM_SSH)); then
   bash "${HERE}/20_ssh.sh" --confirm || die "No se pudo confirmar el cambio de SSH."
+elif systemctl is-active --quiet autoops-ssh-rollback.timer; then
+  log_warn "Rollback de SSH ARMADO. Si tu llave funciona: sudo ADMIN_USER=${ADMIN_USER} ${HERE}/20_ssh.sh --confirm"
 else
-  log_warn "Rollback de SSH sigue ARMADO (${SSH_ROLLBACK_MINUTES} min). Si tu llave funciona: sudo ADMIN_USER=${ADMIN_USER} ${HERE}/20_ssh.sh --confirm"
+  log_info "No hay rollback de SSH pendiente."
 fi
 
 if ((changes == 0)); then
