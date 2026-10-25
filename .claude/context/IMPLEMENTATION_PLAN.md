@@ -9,7 +9,7 @@
 -->
 
 **Last updated:** 2026-10-25
-**Version:** 2.6
+**Version:** 2.7
 
 ---
 
@@ -19,12 +19,12 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
-│  Total User Stories:             23                         │
+│  Total User Stories:             31                         │
 │  ✅ Completed:                   23                         │
-│  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    0                          │
+│  ⏳ In Progress:                 1                          │
+│  ⏸️  Pending:                    7                          │
 │                                                             │
-│  Progress: [██████████] 100% (23/23)                         │
+│  Progress: [███████░░░] 74% (23/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,6 +56,8 @@
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
+| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 0 | 1 | 2 | [░░░░░░░░░░] 0% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 0 | 0 | 5 | [░░░░░░░░░░] 0% |
 
 ---
 
@@ -381,10 +383,85 @@
 
 # 🎯 PHASE 5: SECURE EXPOSURE AND CI/CD
 
-**Goal:** Traefik/Nginx, Let's Encrypt and GitHub Actions.
-**Epics:** To be defined
-**Total US:** 0 (to be written)
-**Progress:** [░░░░░░░░░░] 0% (0/0)
+**Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
+**Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
+**Total US:** 8 (47 pts)
+**Progress:** [░░░░░░░░░░] 0% (0/8)
+
+> Decisions:
+> - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
+> - **TLS:** the host has no public IP or domain (VirtualBox behind residential NAT). Locally, **self-signed certificates are generated during provisioning**; **Let's Encrypt (HTTP-01)** is prepared and switchable through environment variables for production.
+> - **Registry:** images are built in GitHub Actions and published to **GHCR**; the host never builds, it only pulls.
+> - **Deployment is pull-based:** GitHub cannot reach the host through NAT, so a **containerized self-hosted runner** on the host executes the deploy job. The SSH deploy key from US-HOST-002 is not used by this flow.
+> - Recommended order: PROXY-001 → 002 → 003 → CICD-001 → 002 → 003 → 004 → 005.
+> - The runner must not get `docker.sock` (root-equivalent). The mechanism for it to hand a validated image tag to the host is designed in US-CICD-004.
+
+---
+
+## Epic 13: Reverse Proxy & TLS - Traefik, self-signed certificates and Let's Encrypt
+
+**Priority:** HIGH
+**Folder:** `context/user_stories/epic_13_reverse_proxy/`
+
+### User Stories
+
+#### [~] US-PROXY-001: Traefik as the Single Entry Point (HTTP) and Compose Integration
+- **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-001_traefik_entrypoint.md`
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** US-DOCK-004, US-NET-002
+- **Acceptance Criteria:** 4
+
+#### [ ] US-PROXY-002: TLS: Self-Signed Certificates (Local) and Let's Encrypt HTTP-01 (Production) *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 8 pts
+- **Dependencies:** US-PROXY-001
+- **Scope:** `websecure` entrypoint, HTTP→HTTPS redirect, HSTS and security headers; a provisioning step that generates the self-signed certificate; certificate source selected by environment variables (`file` vs ACME HTTP-01, persisted `acme.json`, staging CA option).
+
+#### [ ] US-PROXY-003: Close the Perimeter *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 3 pts
+- **Dependencies:** US-PROXY-002
+- **Scope:** `UFW_WEB_PORTS=80,443`, `DOCKER_PUBLIC_PORTS=80,443` (retire `PORT`/`FRONTEND_PORT`), new `verify.sh` checks, `infra/` docs.
+
+---
+
+## Epic 14: CI/CD - GitHub Actions, GHCR and self-hosted runner
+
+**Priority:** HIGH
+**Folder:** `context/user_stories/epic_14_cicd/`
+
+### User Stories
+
+#### [ ] US-CICD-001: CI Pipeline *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** Phase 4 (independent of Epic 13)
+- **Scope:** GitHub-hosted runners: pytest, frontend lint/typecheck/build, `docker compose config`, shellcheck.
+
+#### [ ] US-CICD-002: Build and Publish Images to GHCR *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** US-CICD-001, US-PROXY-002
+- **Scope:** images tagged by commit SHA; `docker-compose.yml` consumes `image: ghcr.io/...:${IMAGE_TAG}` and keeps `build:` for development; `VITE_*` passed as build-args.
+
+#### [ ] US-CICD-003: Containerized Self-Hosted Runner on the Host *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 8 pts
+- **Dependencies:** US-CICD-002, US-SYS-003
+- **Scope:** runner container provisioned by a numbered script (registration token from the environment, never committed), isolated network, no `docker.sock`, restricted labels and repository, outbound-only connection to GitHub; check in `verify.sh`.
+
+#### [ ] US-CICD-004: Pull-Based Deployment on the Host *(to be written)*
+- **Priority:** CRITICAL
+- **Estimate:** 8 pts
+- **Dependencies:** US-CICD-003, US-SYS-004
+- **Scope:** host-side deploy action with strict tag validation, image pull, migrations, `systemctl reload autoops`, health-gate and automatic rollback to the previous tag; handoff mechanism from the runner to the host.
+
+#### [ ] US-CICD-005: CD Workflow, Smoke Test and Phase Closing *(to be written)*
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** US-CICD-004
+- **Scope:** workflow chaining CI → build → deploy job on the self-hosted runner, post-deploy smoke test over HTTPS, rollback evidence, documentation, phase 5 summary.
 
 ---
 
