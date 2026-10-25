@@ -9,7 +9,7 @@
 -->
 
 **Last updated:** 2026-10-25
-**Version:** 2.5
+**Version:** 2.6
 
 ---
 
@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             23                         │
-│  ✅ Completed:                   22                         │
-│  ⏳ In Progress:                 1                          │
+│  ✅ Completed:                   23                         │
+│  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    0                          │
 │                                                             │
-│  Progress: [█████████░] 96% (22/23)                          │
+│  Progress: [██████████] 100% (23/23)                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,7 +55,7 @@
 | 09 | Host Access & Identity | HOST | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
-| 12 | Provisioning | PROV | 1 | 0 | 1 | 0 | [░░░░░░░░░░] 0% |
+| 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 
 ---
 
@@ -259,10 +259,10 @@
 
 # 🎯 PHASE 4: LINUX INFRASTRUCTURE AND SECURITY
 
-**Goal:** Deliver a dedicated, hardened and reproducible Ubuntu Server 24.04 LTS (validated on a clean VirtualBox VM; EC2 as the final target) that runs the Compose stack as a systemd service, ready for Phase 5.
+**Goal:** Deliver a dedicated, hardened and reproducible Ubuntu Server 26.04 (validated on a clean VirtualBox VM; EC2 as the final target) that runs the Compose stack as a systemd service, ready for Phase 5.
 **Epics:** 09 Host Access & Identity, 10 Network Security, 11 OS Hardening & Runtime, 12 Provisioning
 **Total US:** 10 (54 pts)
-**Progress:** [█████████░] 90% (9/10)
+**Progress:** [██████████] 100% (10/10)
 
 > Decisions: provisioning with **idempotent Bash scripts + `verify.sh`** (no Ansible); **standard Docker** with a hardened `daemon.json` (no rootless); `auditd`/Lynis **excluded**.
 > Recommended order: HOST-001 → HOST-002 → HOST-003 → NET-001 → SYS-001 → SYS-002 → NET-002 → SYS-003 → SYS-004 → PROV-001. NET-002 comes after SYS-002 because it needs Docker installed; PROV-001 integrates everything.
@@ -370,7 +370,7 @@
 
 ### User Stories
 
-#### [~] US-PROV-001: Idempotent Bootstrap and Host Verification
+#### [x] US-PROV-001: Idempotent Bootstrap and Host Verification
 - **File:** `context/user_stories/epic_12_provisioning/US-PROV-001_bootstrap_verify.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts

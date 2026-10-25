@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 8 pts
 **Dependencies:** US-HOST-001, US-HOST-002, US-HOST-003, US-NET-001, US-NET-002, US-SYS-001, US-SYS-002, US-SYS-003, US-SYS-004
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -20,8 +20,8 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: `bootstrap.sh` Orchestrator**
-  - `scripts/provision/bootstrap.sh` runs the numbered scripts in order (`10_users` → `70_systemd`, `80_backup`), with `set -euo pipefail`, prior validation of required variables (fails with a clear message if any is missing), a check that it runs as root/sudo and that the OS is Ubuntu 24.04.
+- [x] **AC-1: `bootstrap.sh` Orchestrator**
+  - `scripts/provision/bootstrap.sh` runs the numbered scripts in order (`10_users` → `70_systemd`, `80_backup`), with `set -euo pipefail`, prior validation of required variables (fails with a clear message if any is missing), a check that it runs as root/sudo and that the OS is Ubuntu 26.04.
   - Critical order: key-based SSH and UFW (allowing SSH) before closing off access; `45_docker_ufw` after Docker.
   - **Verification:** full run on the clean VM without errors.
 
@@ -33,8 +33,8 @@
   - `scripts/provision/verify.sh` runs all `checks/*.sh`, prints an `OK`/`FAIL` table per control and returns a non-zero code if anything fails.
   - **Verification:** passes on the provisioned VM and fails when a control is manually altered (e.g. `PasswordAuthentication yes` or `ufw disable`).
 
-- [ ] **AC-4: Clean VM Validation and Documentation**
-  - Full cycle documented in `infra/README.md`: clean Ubuntu 24.04 VM snapshot → bootstrap → `verify.sh` → reboot → stack `healthy` → end-to-end flow from the browser.
+- [x] **AC-4: Clean VM Validation and Documentation**
+  - Full cycle documented in `infra/README.md`: clean Ubuntu 26.04 VM snapshot → bootstrap → `verify.sh` → reboot → stack `healthy` → end-to-end flow from the browser.
   - Update `CLAUDE.md` (monorepo structure: `scripts/`, `infra/`) and `README.md`.
   - **Verification:** the full test runs from scratch on a new VM and all checks pass after the reboot.
 

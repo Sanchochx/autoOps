@@ -28,6 +28,10 @@ autoops/
 ├── services/
 │   ├── ai-engine/       # LangGraph agents (Triage, Investigator, Executor)
 │   └── mcp-servers/     # MCP servers (DB, logs and metrics isolation)
+├── scripts/
+│   ├── provision/       # Idempotent host bootstrap (bootstrap.sh), verify.sh and per-control checks
+│   └── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
+├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups)
 ├── .claude/
 │   ├── CLAUDE.md        # Project architecture and standards
 │   └── context/         # SDD documentation (plan, user stories, summaries)
@@ -66,6 +70,15 @@ alembic -c apps/api_gateway/alembic.ini revision --autogenerate -m "description"
 ```
 
 Requires `DATABASE_URL` (`postgresql+asyncpg://...`) in `.env`.
+
+### Host provisioning (Ubuntu Server 26.04)
+
+```bash
+sudo ./scripts/provision/bootstrap.sh --env-file provision.env   # idempotent
+sudo ./scripts/provision/verify.sh --env-file provision.env      # OK/FAIL table, exit 1 on any failure
+```
+
+See [`infra/README.md`](infra/README.md) for the full cycle (variables, SSH confirmation, reboot test).
 
 The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
 

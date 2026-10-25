@@ -71,6 +71,12 @@ npm run dev
 npm run build
 ```
 
+### Host provisioning (Phase 4, Ubuntu Server 26.04)
+```bash
+sudo ./scripts/provision/bootstrap.sh --env-file provision.env   # idempotent bootstrap
+sudo ./scripts/provision/verify.sh --env-file provision.env      # verify all controls (exit 1 on failure)
+```
+
 ### Docker Orchestration (Phase 2+)
 ```bash
 # Start all services in the background
@@ -95,6 +101,10 @@ autoops/
 ├── services/
 │   ├── ai-engine/            # LangGraph (Triage, Investigator and Executor agents)
 │   └── mcp-servers/          # MCP servers (DB, logs and metrics isolation)
+├── scripts/
+│   ├── provision/            # bootstrap.sh, verify.sh, NN_*.sh steps and checks/ (idempotent host setup)
+│   └── ops/                  # Backup/restore PostgreSQL, env validation
+├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup)
 ├── .claude/
 │   ├── CLAUDE.md             # This file (architecture and standards guide)
 │   └── context/              # SDD documentation and tracking
