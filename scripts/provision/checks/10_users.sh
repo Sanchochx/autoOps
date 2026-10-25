@@ -22,7 +22,13 @@ svc_ids()            { [[ "$(id -u "$SERVICE_USER"):$(id -g "$SERVICE_USER")" ==
 svc_shell()          { [[ "$(getent passwd "$SERVICE_USER" | cut -d: -f7)" == /usr/sbin/nologin ]]; }
 svc_home()           { [[ "$(getent passwd "$SERVICE_USER" | cut -d: -f6)" == "$APP_DIR" ]]; }
 svc_locked()         { [[ "$(passwd_status "$SERVICE_USER")" == L ]]; }
-svc_no_extra_groups(){ [[ "$(id -nG "$SERVICE_USER")" == "$SERVICE_USER" ]]; }
+# Own group plus `docker` only: 60_docker.sh adds it on purpose and 70_systemd.sh requires it.
+svc_no_extra_groups() {
+  local group
+  for group in $(id -nG "$SERVICE_USER"); do
+    [[ $group == "$SERVICE_USER" || $group == docker ]] || return 1
+  done
+}
 app_dir_perms()      { [[ "$(stat -c '%U:%G %a' "$APP_DIR")" == "${SERVICE_USER}:${SERVICE_USER} 750" ]]; }
 env_perms()          { [[ ! -f $APP_DIR/.env ]] || [[ "$(stat -c '%U:%G %a' "$APP_DIR/.env")" == "${SERVICE_USER}:${SERVICE_USER} 600" ]]; }
 others_blocked()     { ! runuser -u nobody -- ls "$APP_DIR"; }
@@ -38,7 +44,7 @@ check "${SERVICE_USER} tiene UID:GID ${SERVICE_UID}:${SERVICE_GID}" svc_ids
 check "${SERVICE_USER} usa /usr/sbin/nologin" svc_shell
 check "${SERVICE_USER} tiene home en ${APP_DIR}" svc_home
 check "${SERVICE_USER} tiene la contraseña bloqueada" svc_locked
-check "${SERVICE_USER} no pertenece a otros grupos" svc_no_extra_groups
+check "${SERVICE_USER} no pertenece a otros grupos (salvo docker)" svc_no_extra_groups
 check "${APP_DIR} es ${SERVICE_USER}:${SERVICE_USER} 750" app_dir_perms
 check "${APP_DIR}/.env (si existe) es ${SERVICE_USER}:${SERVICE_USER} 600" env_perms
 check "un usuario sin privilegios no lee ${APP_DIR}" others_blocked
