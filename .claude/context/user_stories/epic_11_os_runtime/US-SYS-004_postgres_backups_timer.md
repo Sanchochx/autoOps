@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-SYS-003
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -33,7 +33,7 @@
   - Rotation by age/count (`BACKUP_RETENTION_DAYS`), deleting only files matching the name pattern. Non-zero exit on failure so systemd records it as `failed`.
   - **Verification:** with reduced retention, old dumps are deleted and recent ones are kept.
 
-- [ ] **AC-4: Tested and Documented Restore**
+- [x] **AC-4: Tested and Documented Restore**
   - Procedure in `infra/backup/README.md` and script `scripts/ops/restore_postgres.sh` with explicit confirmation (destructive operation).
   - Check `scripts/provision/checks/80_backup.sh` (timer active, directory permissions).
   - **Verification:** restore a dump into a clean database and verify that the tickets match.

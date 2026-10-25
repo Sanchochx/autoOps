@@ -8,8 +8,8 @@
   The workflow (TASK_EXECUTION.md) updates this file when closing each US.
 -->
 
-**Last updated:** 2026-10-23
-**Version:** 2.4
+**Last updated:** 2026-10-25
+**Version:** 2.5
 
 ---
 
@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             23                         │
-│  ✅ Completed:                   21                         │
-│  ⏳ In Progress:                 1                          │
+│  ✅ Completed:                   22                         │
+│  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    1                          │
 │                                                             │
-│  Progress: [█████████░] 91% (21/23)                          │
+│  Progress: [█████████░] 96% (22/23)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +54,7 @@
 | 08 | Containerization & Orchestration | DOCK | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 09 | Host Access & Identity | HOST | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
-| 11 | OS Hardening & Runtime | SYS | 4 | 3 | 1 | 0 | [███████░░░] 75% |
+| 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 0 | 0 | 1 | [░░░░░░░░░░] 0% |
 
 ---
@@ -262,7 +262,7 @@
 **Goal:** Deliver a dedicated, hardened and reproducible Ubuntu Server 24.04 LTS (validated on a clean VirtualBox VM; EC2 as the final target) that runs the Compose stack as a systemd service, ready for Phase 5.
 **Epics:** 09 Host Access & Identity, 10 Network Security, 11 OS Hardening & Runtime, 12 Provisioning
 **Total US:** 10 (54 pts)
-**Progress:** [████████░░] 80% (8/10)
+**Progress:** [█████████░] 90% (9/10)
 
 > Decisions: provisioning with **idempotent Bash scripts + `verify.sh`** (no Ansible); **standard Docker** with a hardened `daemon.json` (no rootless); `auditd`/Lynis **excluded**.
 > Recommended order: HOST-001 → HOST-002 → HOST-003 → NET-001 → SYS-001 → SYS-002 → NET-002 → SYS-003 → SYS-004 → PROV-001. NET-002 comes after SYS-002 because it needs Docker installed; PROV-001 integrates everything.
@@ -354,7 +354,7 @@
 - **Dependencies:** US-HOST-001, US-SYS-002, US-NET-002
 - **Acceptance Criteria:** 4
 
-#### [~] US-SYS-004: PostgreSQL Backups with systemd Timer
+#### [x] US-SYS-004: PostgreSQL Backups with systemd Timer
 - **File:** `context/user_stories/epic_11_os_runtime/US-SYS-004_postgres_backups_timer.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
