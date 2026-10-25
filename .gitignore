@@ -50,3 +50,6 @@ docker-compose.override.yml
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Provisioning variables (US-PROV-001)
+provision.env

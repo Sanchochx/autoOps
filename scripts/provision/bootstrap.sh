@@ -2,8 +2,10 @@
 # US-PROV-001 (AC-1): provisions a clean Ubuntu Server 24.04 end to end. Idempotent.
 #
 #   sudo ADMIN_USER=<user> ADMIN_SSH_PUBKEY_FILE=<path.pub> FAIL2BAN_IGNOREIP="<IP/CIDR ...>" \
-#     ./scripts/provision/bootstrap.sh [--confirm-ssh]
+#     ./scripts/provision/bootstrap.sh [--env-file <provision.env>] [--confirm-ssh]
 #
+# Variables can also come from a file (--env-file or PROVISION_ENV_FILE; template: provision.env.example);
+# the environment takes precedence over the file.
 # Required variables: ADMIN_USER, ADMIN_SSH_PUBKEY_FILE, FAIL2BAN_IGNOREIP.
 # Every other variable (SERVICE_USER, APP_DIR, SSH_PORT, ADMIN_CIDR, UFW_WEB_PORTS, ...) is optional
 # and documented in the header of the script that uses it; they are passed through unchanged.
@@ -26,16 +28,24 @@ STEPS=(10_users 20_ssh 30_fail2ban 40_ufw 50_os_baseline 60_docker 45_docker_ufw
 REQUIRED_VARS=(ADMIN_USER ADMIN_SSH_PUBKEY_FILE FAIL2BAN_IGNOREIP)
 
 CONFIRM_SSH=0
-for arg in "$@"; do
-  case $arg in
+ENV_FILE="${PROVISION_ENV_FILE:-}"
+while (($#)); do
+  case $1 in
     --confirm-ssh) CONFIRM_SSH=1 ;;
+    --env-file)
+      [[ $# -ge 2 ]] || die "--env-file requiere una ruta."
+      ENV_FILE=$2
+      shift
+      ;;
     -h | --help) sed -n '2,/^set -/{/^set -/!s/^# \{0,1\}//p}' "${BASH_SOURCE[0]}"; exit 0 ;;
-    *) die "Argumento desconocido '${arg}' (admitidos: --confirm-ssh, --help)." ;;
+    *) die "Argumento desconocido '$1' (admitidos: --env-file, --confirm-ssh, --help)." ;;
   esac
+  shift
 done
 
 # --- Preflight: nothing is touched until everything below passes -------------------------
 require_root
+[[ -z $ENV_FILE ]] || load_env_file "$ENV_FILE"
 
 os_id="$(. /etc/os-release 2>/dev/null && echo "${ID:-}")"
 os_version="$(. /etc/os-release 2>/dev/null && echo "${VERSION_ID:-}")"
@@ -63,15 +73,20 @@ export APP_ENV_FILE="${APP_ENV_FILE:-${APP_DIR}/.env}"
 export SSH_ROLLBACK_MINUTES="${SSH_ROLLBACK_MINUTES:-30}"
 
 # --- Run the steps in order; the first failure stops the whole run ----------------------
+# Each [CAMBIO] line a step prints is a real modification; the total tells whether a run was a no-op.
+RUN_LOG="$(mktemp)"
+trap 'rm -f "$RUN_LOG"' EXIT
 total=${#STEPS[@]}
 index=0
 for step in "${STEPS[@]}"; do
   index=$((index + 1))
   log_info "=== [${index}/${total}] ${step} ==="
-  if ! bash "${HERE}/${step}.sh"; then
+  # pipefail makes a failing step fail the pipeline even though tee succeeds.
+  if ! bash "${HERE}/${step}.sh" 2>&1 | tee -a "$RUN_LOG"; then
     die "Falló el paso ${step}. Corrige la causa y vuelve a ejecutar bootstrap.sh (los pasos son idempotentes)."
   fi
 done
+changes="$(grep -c '^\[CAMBIO\]' "$RUN_LOG" || true)"
 
 if ((CONFIRM_SSH)); then
   bash "${HERE}/20_ssh.sh" --confirm || die "No se pudo confirmar el cambio de SSH."
@@ -79,4 +94,9 @@ else
   log_warn "Rollback de SSH sigue ARMADO (${SSH_ROLLBACK_MINUTES} min). Si tu llave funciona: sudo ADMIN_USER=${ADMIN_USER} ${HERE}/20_ssh.sh --confirm"
 fi
 
-log_info "bootstrap.sh finalizado (${total} pasos). Siguiente: verificar los controles (checks/*.sh)."
+if ((changes == 0)); then
+  log_info "Sin cambios: el sistema ya estaba aprovisionado (${total} pasos)."
+else
+  log_info "${changes} cambio(s) aplicado(s) en ${total} pasos."
+fi
+log_info "bootstrap.sh finalizado. Siguiente: ${HERE}/verify.sh"

@@ -56,6 +56,26 @@ ensure_file() {
   fi
 }
 
+# load_env_file <file>: exports KEY=VALUE lines (quoted values allowed) without sourcing the file, so it
+# cannot run code. Variables already set in the environment win. Aborts on malformed lines, on
+# loader-sensitive names (PATH, LD_*, ...) and on files writable by group/others.
+load_env_file() {
+  local file=$1 line key value n=0
+  [[ -r $file ]] || die "No se puede leer el archivo de variables '${file}'."
+  [[ "$(stat -c '%A' "$file")" =~ ^-....-..-.$ ]] \
+    || die "${file} admite escritura de grupo/otros; corrige con chmod go-w."
+  while IFS= read -r line || [[ -n $line ]]; do
+    n=$((n + 1))
+    [[ -z ${line//[[:space:]]/} || $line =~ ^[[:space:]]*# ]] && continue
+    [[ $line =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || die "${file}:${n}: línea inválida (se espera NOMBRE=valor)."
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    [[ $key =~ ^(PATH|IFS|ENV|BASH_ENV|SHELLOPTS|LD_.*|HOME)$ ]] && die "${file}:${n}: variable no permitida '${key}'."
+    if [[ $value =~ ^\"(.*)\"$ || $value =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
+    [[ -n ${!key:-} ]] || export "${key}=${value}"
+  done <"$file"
+}
+
 # --- Checks: each `check` prints OK/FAIL and accumulates failures ---------------------
 CHECK_FAILS=0
 
