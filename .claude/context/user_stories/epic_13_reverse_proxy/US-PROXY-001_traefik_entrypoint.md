@@ -26,7 +26,7 @@
   - Healthcheck through Traefik's `ping` endpoint.
   - **Verification:** `docker compose config` is valid, the container is `healthy` and its mounts do not include `docker.sock`.
 
-- [ ] **AC-2: Path Routing and Removal of Direct Ports**
+- [x] **AC-2: Path Routing and Removal of Direct Ports**
   - `/` routes to `frontend`; `/api` and `/ws` route to `api-gateway`, including the WebSocket upgrade.
   - `frontend` and `api-gateway` join `edge_net` and lose their `ports:`. Only Traefik publishes a host port (80 at this stage).
   - **Verification:** `curl -H "Host: $DOMAIN"` returns the frontend on `/` and the gateway on its API/health routes; direct access to `PORT` and `FRONTEND_PORT` fails.

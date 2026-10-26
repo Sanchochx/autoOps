@@ -28,7 +28,9 @@ RUN npm run build
 FROM nginx:alpine AS runtime
 
 # Full Nginx configuration (replaces the default one, which requires root).
-COPY nginx.conf /etc/nginx/nginx.conf
+# --chmod: COPY keeps the source mode, and the unprivileged `nginx` user must be able to read it
+# whatever the umask of the machine that builds the image.
+COPY --chmod=0644 nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Writes only to /tmp (pid and temp files, see nginx.conf); the content is read-only.

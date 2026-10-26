@@ -1,0 +1,29 @@
+# Routing (US-PROXY-001 AC-2). Single domain, routed by path:
+#   /api, /ws  -> api-gateway  (REST under /api/v1, WebSocket at /ws/stream)
+#   /          -> frontend     (everything else, including the SPA fallback)
+# `{{ env "..." }}` is Go templating evaluated by the file provider; the variables come from
+# the traefik service in docker-compose.yml. A request for any other Host gets a 404 from Traefik.
+# WebSocket upgrades need no extra configuration.
+http:
+  routers:
+    gateway:
+      entryPoints: [web]
+      rule: 'Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`))'
+      priority: 20
+      service: gateway
+    frontend:
+      entryPoints: [web]
+      rule: 'Host(`{{ env "DOMAIN" }}`)'
+      priority: 10
+      service: frontend
+
+  services:
+    gateway:
+      loadBalancer:
+        servers:
+          - url: 'http://api-gateway:{{ env "GATEWAY_PORT" }}'
+    frontend:
+      loadBalancer:
+        servers:
+          # Unprivileged Nginx port fixed by apps/frontend/Dockerfile.
+          - url: "http://frontend:8080"

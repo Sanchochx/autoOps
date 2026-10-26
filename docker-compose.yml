@@ -5,10 +5,10 @@
 #   docker compose --profile tools run --rm migrate   # Alembic migrations (explicit step)
 #
 # Networks (all bridge):
-#   frontend_net  host publishing + Internet egress (frontend, api-gateway)
 #   backend_net   api-gateway <-> postgres            (internal: no Internet or host access)
 #   mcp_net       api-gateway <-> MCP servers      (internal: no Internet or host access)
-#   edge_net      traefik <-> frontend, api-gateway (reverse proxy entry point; Internet egress for ACME)
+#   edge_net      traefik (the only service publishing a host port) <-> frontend, api-gateway;
+#                 Internet egress (LLM APIs for the gateway, ACME for traefik)
 
 x-hardening: &hardening
   cap_drop: [ALL]
@@ -82,8 +82,6 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
-    ports:
-      - "${PORT}:${PORT}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,7 +97,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    networks: [frontend_net, backend_net, mcp_net]
+    networks: [edge_net, backend_net, mcp_net]
 
   frontend:
     build:
@@ -112,8 +110,6 @@ services:
     <<: *hardening
     read_only: true
     tmpfs: [/tmp]
-    ports:
-      - "${FRONTEND_PORT:?define FRONTEND_PORT en .env}:8080"
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -123,20 +119,31 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
-    networks: [frontend_net]
+    networks: [edge_net]
 
-  # Reverse proxy: static config + file provider only. The Docker socket is NOT mounted.
+  # Reverse proxy: the only service that publishes a host port. Configuration is baked into
+  # the image (infra/traefik/Dockerfile): static file + file provider; the Docker socket is NOT mounted.
   # Runs unprivileged; NET_BIND_SERVICE is kept so binding 80/443 never depends on sysctl defaults.
   traefik:
-    image: traefik:${TRAEFIK_VERSION:-v3.7.16}
+    build:
+      context: ./infra/traefik
+      args:
+        TRAEFIK_VERSION: ${TRAEFIK_VERSION:-v3.7.16}
     restart: unless-stopped
     <<: *hardening
     cap_add: [NET_BIND_SERVICE]
     user: "65532:65532"
     read_only: true
-    volumes:
-      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+    environment:
+      DOMAIN: ${DOMAIN:?define DOMAIN en .env}
+      GATEWAY_PORT: ${PORT:?define PORT en .env}
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 10s
@@ -165,8 +172,6 @@ services:
 
 networks:
   edge_net:
-    driver: bridge
-  frontend_net:
     driver: bridge
   backend_net:
     driver: bridge
