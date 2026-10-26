@@ -20,6 +20,9 @@ unit_prop()      { [[ "$(systemctl show "$1" --property="$2" --value)" == "$3" ]
 unit_verifies()  { systemd-analyze verify "$1"; }
 env_file_ok()    { [[ "$(stat -c '%U:%G %a' "${APP_DIR}/.env")" == "${SERVICE_USER}:${SERVICE_USER} 600" ]]; }
 prestart_guard() { grep -q "^ExecStartPre=${APP_DIR}/scripts/ops/validate_env.sh\$" "$UNIT" && [[ -x ${APP_DIR}/scripts/ops/validate_env.sh ]]; }
+# Tested AS the service user: root passes `-x` on any file with an execute bit, which hides
+# ownership/mode problems on the path (e.g. a tree copied with umask 0007) that surface as 203/EXEC.
+service_can_exec() { sudo -u "$SERVICE_USER" test -x "${APP_DIR}/scripts/ops/validate_env.sh"; }
 no_secrets()     { ! grep -Eqi '(password|secret|api_key|token)=' "$UNIT" "$MIGRATE"; }
 never_enabled() { [[ "$(systemctl is-enabled autoops-migrate 2>/dev/null)" == "static" ]]; }
 no_install()     { ! grep -q '^\[Install\]' "$MIGRATE"; }
@@ -49,6 +52,7 @@ check "corre como ${SERVICE_USER}" unit_prop autoops User "$SERVICE_USER"
 check "ExecStop sin -v (los datos persisten)" no_volume_wipe
 check "sin secretos en las unidades" no_secrets
 check "autoops.service valida secretos por defecto antes de arrancar (ExecStartPre)" prestart_guard
+check "${SERVICE_USER} puede ejecutar scripts/ops/validate_env.sh (propiedad y modos del árbol)" service_can_exec
 check "${APP_DIR}/.env es ${SERVICE_USER}:${SERVICE_USER} 0600" env_file_ok
 check "sandboxing activo (NoNewPrivileges, ProtectHome, PrivateTmp, ProtectSystem=full)" sandbox_on
 check "autoops.service no ejecuta migraciones" migrate_is_manual
