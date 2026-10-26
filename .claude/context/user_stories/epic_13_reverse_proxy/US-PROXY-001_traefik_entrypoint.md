@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-DOCK-004, US-NET-002
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -37,7 +37,7 @@
   - No domains, ports or routes hardcoded in the Traefik configuration: everything comes from the environment.
   - **Verification:** the stack refuses to start with a clear message if `DOMAIN` is missing.
 
-- [ ] **AC-4: End-to-End Validation and Documentation**
+- [x] **AC-4: End-to-End Validation and Documentation**
   - The stack comes up `healthy` through `autoops.service`. The dashboard loads through Traefik, a ticket is created and the reasoning stream arrives over WebSocket.
   - `infra/traefik/README.md` written; `CLAUDE.md` (monorepo structure, `edge_net`) updated.
   - **Verification:** full flow on the VM over HTTP.

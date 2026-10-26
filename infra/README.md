@@ -13,6 +13,7 @@ the per-topic folders below.
 | [`docker/`](docker/README.md) | Docker Engine and hardened `daemon.json` (SYS-002) |
 | [`systemd/`](systemd/README.md) | `autoops` service, migrations unit, backup timer (SYS-003) |
 | [`backup/`](backup/README.md) | PostgreSQL backups and restore (SYS-004) |
+| [`traefik/`](traefik/README.md) | Reverse proxy: single entry point, path routing (Phase 5, PROXY-001) |
 
 ## Scripts
 
@@ -51,8 +52,9 @@ Bootstrap order: `10_users → 20_ssh → 30_fail2ban → 40_ufw → 50_os_basel
    `STACK_REQUIRED=0` so the runtime checks run too.
 9. **Reboot** (`sudo reboot`), wait for the host, and repeat step 8: all groups must still be `OK` and
    `docker compose ps` must show every service `healthy`.
-10. **End to end**: open `http://<host>:<FRONTEND_PORT>` from the browser (the port must be in `DOCKER_PUBLIC_PORTS`),
-    create a ticket and watch the agents' reasoning stream.
+10. **End to end**: open `http://<DOMAIN>` (served by Traefik on `PROXY_HTTP_PORT`; map `DOMAIN` in the client's hosts
+    file), create a ticket and watch the agents' reasoning stream. Port 80 is not open in UFW until US-PROXY-003:
+    test from the VM itself or add it to `DOCKER_PUBLIC_PORTS` temporarily.
 
 To prove `verify.sh` detects drift, alter a control (e.g. `sudo ufw disable`), run it (expect exit `1` and a `FAIL`
 row), then restore the control.
@@ -62,4 +64,4 @@ row), then restore the control.
 - `bootstrap.sh` refuses to run on anything but Ubuntu 26.04, as root, and without the required variables
   (`ADMIN_USER`, `ADMIN_SSH_PUBKEY_FILE`, `FAIL2BAN_IGNOREIP`). Nothing is touched before those checks pass.
 - It never cancels the SSH rollback by itself unless `--confirm-ssh` is given.
-- Out of scope: instance provisioning (Terraform), TLS / reverse proxy and CI/CD (Phase 5), auditd/Lynis.
+- Out of scope: instance provisioning (Terraform), auditd/Lynis. TLS and CI/CD are Phase 5 (US-PROXY-002, Epic 14).

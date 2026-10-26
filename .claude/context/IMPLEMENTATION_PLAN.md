@@ -8,8 +8,8 @@
   The workflow (TASK_EXECUTION.md) updates this file when closing each US.
 -->
 
-**Last updated:** 2026-10-25
-**Version:** 2.7
+**Last updated:** 2026-10-26
+**Version:** 2.8
 
 ---
 
@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   23                         │
-│  ⏳ In Progress:                 1                          │
+│  ✅ Completed:                   24                         │
+│  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    7                          │
 │                                                             │
-│  Progress: [███████░░░] 74% (23/31)                          │
+│  Progress: [████████░░] 77% (24/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,7 +56,7 @@
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
-| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 0 | 1 | 2 | [░░░░░░░░░░] 0% |
+| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 1 | 0 | 2 | [███░░░░░░░] 33% |
 | 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 0 | 0 | 5 | [░░░░░░░░░░] 0% |
 
 ---
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [░░░░░░░░░░] 0% (0/8)
+**Progress:** [█░░░░░░░░░] 13% (1/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -405,7 +405,7 @@
 
 ### User Stories
 
-#### [~] US-PROXY-001: Traefik as the Single Entry Point (HTTP) and Compose Integration
+#### [x] US-PROXY-001: Traefik as the Single Entry Point (HTTP) and Compose Integration
 - **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-001_traefik_entrypoint.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts

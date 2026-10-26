@@ -82,6 +82,9 @@ sudo ./scripts/provision/verify.sh --env-file provision.env      # verify all co
 # Start all services in the background
 docker compose up -d --build
 
+# Only Traefik publishes a host port (http://$DOMAIN:$PROXY_HTTP_PORT); the gateway and frontend
+# are reachable only through it (/api, /ws -> gateway; / -> frontend). See infra/traefik/README.md
+
 # Follow unified logs
 docker compose logs -f
 
@@ -104,7 +107,7 @@ autoops/
 ├── scripts/
 │   ├── provision/            # bootstrap.sh, verify.sh, NN_*.sh steps and checks/ (idempotent host setup)
 │   └── ops/                  # Backup/restore PostgreSQL, env validation
-├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup)
+├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
 ├── .claude/
 │   ├── CLAUDE.md             # This file (architecture and standards guide)
 │   └── context/              # SDD documentation and tracking
@@ -185,9 +188,14 @@ LANGCHAIN_API_KEY=your_langsmith_key
 MCP_LOGS_SERVER_URL=http://localhost:5001
 MCP_DB_SERVER_URL=http://localhost:5002
 
-# Frontend (Vite)
+# Frontend (Vite) — development values; under Docker Compose the frontend is built with same-origin paths
 VITE_API_BASE_URL=http://localhost:8000
 VITE_WS_BASE_URL=ws://localhost:8000/ws
+
+# Reverse proxy (Traefik)
+DOMAIN=autoops.local      # required; the only Host Traefik routes
+PUBLIC_SCHEME=http        # http | https; forms the CORS origin with DOMAIN
+PROXY_HTTP_PORT=80
 ```
 
 ---
