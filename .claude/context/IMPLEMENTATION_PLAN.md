@@ -412,11 +412,13 @@
 - **Dependencies:** US-DOCK-004, US-NET-002
 - **Acceptance Criteria:** 4
 
-#### [ ] US-PROXY-002: TLS: Self-Signed Certificates (Local) and Let's Encrypt HTTP-01 (Production) *(to be written)*
+#### [ ] US-PROXY-002: TLS: Local CA with Self-Signed Certificates and Let's Encrypt HTTP-01
+- **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-002_tls.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts
-- **Dependencies:** US-PROXY-001
-- **Scope:** `websecure` entrypoint, HTTP→HTTPS redirect, HSTS and security headers; a provisioning step that generates the self-signed certificate; certificate source selected by environment variables (`file` vs ACME HTTP-01, persisted `acme.json`, staging CA option).
+- **Dependencies:** US-PROXY-001, US-SYS-003
+- **Acceptance Criteria:** 5
+- **Decisions:** local root CA (importable once on the host machine) signs the leaf; HTTP→HTTPS redirect is mandatory in every mode; `TLS_MODE` (`selfsigned`|`acme`) has no default; the CA key never reaches the proxy.
 
 #### [ ] US-PROXY-003: Close the Perimeter *(to be written)*
 - **Priority:** HIGH
