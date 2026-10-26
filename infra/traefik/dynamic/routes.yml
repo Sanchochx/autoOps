@@ -12,14 +12,26 @@ http:
       entryPoints: [websecure]
       rule: 'Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`))'
       priority: 20
-      tls: {}
+      tls:
+{{- if eq (env "TLS_MODE") "acme" }}
+        certResolver: le
+        domains:
+          - main: '{{ env "DOMAIN" }}'
+{{- else }} {}
+{{- end }}
       middlewares: [hsts]
       service: gateway
     frontend:
       entryPoints: [websecure]
       rule: 'Host(`{{ env "DOMAIN" }}`)'
       priority: 10
-      tls: {}
+      tls:
+{{- if eq (env "TLS_MODE") "acme" }}
+        certResolver: le
+        domains:
+          - main: '{{ env "DOMAIN" }}'
+{{- else }} {}
+{{- end }}
       middlewares: [hsts]
       service: frontend
 

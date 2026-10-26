@@ -49,7 +49,7 @@
   - The gateway trusts the proxy's `X-Forwarded-*` headers (`FORWARDED_ALLOW_IPS`), so any redirect it issues keeps `https`. Justified because the gateway publishes no port and is reachable only from `edge_net`.
   - **Verification:** `curl -si http://$DOMAIN/` answers a permanent redirect (Traefik emits `301`) to `https://…`; the HTTPS response carries `Strict-Transport-Security`; a gateway redirect (e.g. a trailing-slash request under `/api/v1/tickets/`) returns a `Location` with `https://`.
 
-- [ ] **AC-4: Let's Encrypt HTTP-01 Switchable by Environment (`TLS_MODE=acme`)**
+- [x] **AC-4: Let's Encrypt HTTP-01 Switchable by Environment (`TLS_MODE=acme`)**
   - `certificatesResolvers` for ACME HTTP-01 with `ACME_EMAIL` (required in this mode), `ACME_CA_SERVER` (empty = production; staging URL documented) and storage in a named volume mounted on a directory that exists in the image with owner `65532`, so `acme.json` is writable by the unprivileged proxy and persists across recreation.
   - The HTTP-01 challenge keeps working with the mandatory redirect in place.
   - **Verification (configuration only, no issuance is possible here):** with `TLS_MODE=acme`, `docker compose config` is valid, Traefik starts `healthy`, its log shows the resolver registered and no file-certificate is loaded; invalid combinations are rejected (see AC-5).

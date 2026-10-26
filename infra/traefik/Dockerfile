@@ -8,7 +8,14 @@ FROM traefik:${TRAEFIK_VERSION}
 
 COPY traefik.yml /etc/traefik/traefik.yml
 COPY dynamic/ /etc/traefik/dynamic/
+COPY entrypoint.sh /etc/traefik/entrypoint.sh
 
 # The container runs as an unprivileged UID (set in docker-compose.yml): the files must be
 # world-readable whatever the mode they had in the build context.
 RUN chmod -R a+rX /etc/traefik
+
+# ACME storage (TLS_MODE=acme): the named volume mounted here inherits this owner on first use, so
+# acme.json is writable by the unprivileged proxy and survives container recreation.
+RUN mkdir /acme && chown 65532:65532 /acme && chmod 0700 /acme
+
+ENTRYPOINT ["/etc/traefik/entrypoint.sh"]

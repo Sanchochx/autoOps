@@ -1,7 +1,8 @@
 # Certificate source (US-PROXY-002), chosen by TLS_MODE through Go templating:
 #   selfsigned  leaf signed by the local CA, mounted read-only at /etc/traefik/tls
 #               (written by scripts/provision/65_tls.sh).
-# Any other mode loads no file certificate (the ACME resolver arrives in AC-4).
+#   acme        loads no file certificate: the routers use the `le` resolver (Let's Encrypt HTTP-01)
+#               appended to the static configuration by entrypoint.sh.
 {{ if eq (env "TLS_MODE") "selfsigned" }}
 tls:
   certificates:
