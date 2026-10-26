@@ -12,8 +12,9 @@
 # Also required on disk before starting: ${APP_DIR}/docker-compose.yml and ${APP_DIR}/.env (70_systemd.sh).
 #
 # Execution order (dependencies, not just numeric):
-#   10_users -> 20_ssh -> 30_fail2ban -> 40_ufw -> 50_os_baseline -> 60_docker -> 45_docker_ufw -> 70_systemd
+#   10_users -> 20_ssh -> 30_fail2ban -> 40_ufw -> 50_os_baseline -> 60_docker -> 65_tls -> 45_docker_ufw -> 70_systemd
 # 45_docker_ufw runs AFTER 60_docker (it needs Docker installed) although its number is lower.
+# 65_tls (US-PROXY-002) reads TLS_MODE and DOMAIN from ${APP_DIR}/.env and must exist before the stack starts.
 # SSH keys (20) and the UFW SSH rule (40) are in place before anything that could close off access.
 # The backup units/timer (US-SYS-004) are installed by 70_systemd; their check is checks/80_backup.sh.
 #
@@ -24,7 +25,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STEPS=(10_users 20_ssh 30_fail2ban 40_ufw 50_os_baseline 60_docker 45_docker_ufw 70_systemd)
+STEPS=(10_users 20_ssh 30_fail2ban 40_ufw 50_os_baseline 60_docker 65_tls 45_docker_ufw 70_systemd)
 REQUIRED_VARS=(ADMIN_USER ADMIN_SSH_PUBKEY_FILE FAIL2BAN_IGNOREIP)
 
 CONFIRM_SSH=0

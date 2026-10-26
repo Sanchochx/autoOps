@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 8 pts
 **Dependencies:** US-PROXY-001, US-SYS-003
-**Status:** Pending (draft awaiting approval)
+**Status:** In progress
 
 ---
 
@@ -30,7 +30,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Local CA and Leaf Certificate in Provisioning**
+- [x] **AC-1: Local CA and Leaf Certificate in Provisioning**
   - New idempotent step `scripts/provision/65_tls.sh` (runs after `60_docker`, before `70_systemd`; added to `bootstrap.sh`). Creates, under `TLS_DIR` (default `${APP_DIR}/tls`):
     - a root CA (key `0400 root`, certificate world-readable, long validity);
     - a leaf certificate for `DOMAIN` (SAN: `DOMAIN` plus optional `TLS_EXTRA_SANS`), validity of 365 days, key and certificate in a `server/` directory readable by the proxy's UID `65532` and by nobody else.

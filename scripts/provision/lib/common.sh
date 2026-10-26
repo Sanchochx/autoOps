@@ -76,6 +76,15 @@ load_env_file() {
   done <"$file"
 }
 
+# env_file_value <file> <NAME>: the value of NAME, from the process environment first and then from
+# the file (the precedence docker compose uses). The file is parsed, never sourced.
+env_file_value() {
+  local file=$1 name=$2 line
+  if [[ -n ${!name:-} ]]; then printf '%s' "${!name}"; return; fi
+  line="$(grep -E "^${name}=" "$file" 2>/dev/null | tail -n1)" || true
+  line="${line#*=}"; line="${line%\"}"; printf '%s' "${line#\"}"
+}
+
 # --- Checks: each `check` prints OK/FAIL and accumulates failures ---------------------
 CHECK_FAILS=0
 

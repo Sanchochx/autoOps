@@ -21,8 +21,8 @@
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
 │  ✅ Completed:                   24                         │
-│  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    7                          │
+│  ⏳ In Progress:                 1                          │
+│  ⏸️  Pending:                    6                          │
 │                                                             │
 │  Progress: [████████░░] 77% (24/31)                          │
 └─────────────────────────────────────────────────────────────┘
@@ -56,7 +56,7 @@
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
-| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 1 | 0 | 2 | [███░░░░░░░] 33% |
+| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 1 | 1 | 1 | [███░░░░░░░] 33% |
 | 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 0 | 0 | 5 | [░░░░░░░░░░] 0% |
 
 ---
@@ -412,7 +412,7 @@
 - **Dependencies:** US-DOCK-004, US-NET-002
 - **Acceptance Criteria:** 4
 
-#### [ ] US-PROXY-002: TLS: Local CA with Self-Signed Certificates and Let's Encrypt HTTP-01
+#### [~] US-PROXY-002: TLS: Local CA with Self-Signed Certificates and Let's Encrypt HTTP-01
 - **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-002_tls.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts
