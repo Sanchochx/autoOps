@@ -5,7 +5,7 @@
 # the traefik service in docker-compose.yml. A request for any other Host gets a 404 from Traefik.
 # WebSocket upgrades need no extra configuration.
 # Both routers are served on `websecure` with TLS (US-PROXY-002); the certificate source is
-# chosen in tls.yml. Plain HTTP on `web` has no router until the redirect of AC-3.
+# chosen in tls.yml. Plain HTTP on `web` is redirected to `websecure` by the entrypoint (traefik.yml).
 http:
   routers:
     gateway:
@@ -13,13 +13,21 @@ http:
       rule: 'Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`))'
       priority: 20
       tls: {}
+      middlewares: [hsts]
       service: gateway
     frontend:
       entryPoints: [websecure]
       rule: 'Host(`{{ env "DOMAIN" }}`)'
       priority: 10
       tls: {}
+      middlewares: [hsts]
       service: frontend
+
+  middlewares:
+    # No includeSubDomains / preload: the policy covers DOMAIN only.
+    hsts:
+      headers:
+        stsSeconds: {{ env "HSTS_MAX_AGE_SECONDS" }}
 
   services:
     gateway:

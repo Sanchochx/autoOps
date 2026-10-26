@@ -43,11 +43,11 @@
   - The certificate source is chosen by `TLS_MODE` through templating in the baked dynamic configuration (no second image, no code change).
   - **Verification:** `curl --cacert <ca.crt> --resolve $DOMAIN:443:127.0.0.1 https://$DOMAIN/` returns the frontend and `/api/v1/tickets` the API; `openssl s_client` shows the leaf signed by the local CA; without `--cacert` curl rejects it.
 
-- [ ] **AC-3: Mandatory Redirect, HSTS and Forwarded Headers**
-  - Entrypoint-level permanent redirect `web` → `websecure` in all modes.
+- [x] **AC-3: Mandatory Redirect, HSTS and Forwarded Headers**
+  - Entrypoint-level permanent redirect (`301`) `web` → `websecure` in all modes.
   - HSTS through a middleware applied to the routers, `max-age` from `HSTS_MAX_AGE_SECONDS` (default one year), without `includeSubDomains` or `preload`.
   - The gateway trusts the proxy's `X-Forwarded-*` headers (`FORWARDED_ALLOW_IPS`), so any redirect it issues keeps `https`. Justified because the gateway publishes no port and is reachable only from `edge_net`.
-  - **Verification:** `curl -si http://$DOMAIN/` answers `308` to `https://…`; the HTTPS response carries `Strict-Transport-Security`; a gateway redirect (e.g. a trailing-slash request under `/api/v1/tickets/`) returns a `Location` with `https://`.
+  - **Verification:** `curl -si http://$DOMAIN/` answers a permanent redirect (Traefik emits `301`) to `https://…`; the HTTPS response carries `Strict-Transport-Security`; a gateway redirect (e.g. a trailing-slash request under `/api/v1/tickets/`) returns a `Location` with `https://`.
 
 - [ ] **AC-4: Let's Encrypt HTTP-01 Switchable by Environment (`TLS_MODE=acme`)**
   - `certificatesResolvers` for ACME HTTP-01 with `ACME_EMAIL` (required in this mode), `ACME_CA_SERVER` (empty = production; staging URL documented) and storage in a named volume mounted on a directory that exists in the image with owner `65532`, so `acme.json` is writable by the unprivileged proxy and persists across recreation.

@@ -69,6 +69,9 @@ services:
     environment: &gateway_env
       HOST: 0.0.0.0
       PORT: ${PORT:?define PORT en .env}
+      # uvicorn trusts X-Forwarded-* from these peers. Safe: the gateway publishes no port and is
+      # reachable only from edge_net (the proxy), so any redirect it issues keeps https.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
       DEBUG: ${DEBUG:-False}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?define SECRET_KEY en .env}
@@ -140,6 +143,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN:?define DOMAIN en .env}
       GATEWAY_PORT: ${PORT:?define PORT en .env}
+      HSTS_MAX_AGE_SECONDS: ${HSTS_MAX_AGE_SECONDS:-31536000}
       TLS_MODE: ${TLS_MODE:?define TLS_MODE en .env (selfsigned | acme)}
     ports:
       - "${PROXY_HTTP_PORT:-80}:80"

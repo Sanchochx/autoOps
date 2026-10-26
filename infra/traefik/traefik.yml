@@ -13,6 +13,14 @@ global:
 entryPoints:
   web:
     address: ":80"
+    # Mandatory in every TLS mode. A router-less redirect keeps the ACME HTTP-01 challenge
+    # reachable (Traefik answers it before routing).
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
   websecure:
     address: ":443"
   # Internal-only entrypoint for the healthcheck. It is never published to the host

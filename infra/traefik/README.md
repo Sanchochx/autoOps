@@ -32,6 +32,8 @@ browser ──► :PROXY_HTTP_PORT ─► traefik ─┬─ /api, /ws ─► api
 | `PUBLIC_SCHEME` | `http` | `http` or `https`; with `DOMAIN` it forms the origin allowed by CORS. |
 | `PROXY_HTTP_PORT` | `80` | Host port published for HTTP. |
 | `PROXY_HTTPS_PORT` | `443` | Host port published for HTTPS. |
+| `HSTS_MAX_AGE_SECONDS` | `31536000` | `max-age` of `Strict-Transport-Security` (no `includeSubDomains`/`preload`). |
+| `FORWARDED_ALLOW_IPS` | `*` | Peers whose `X-Forwarded-*` the gateway trusts (set on `api-gateway`). |
 | `TLS_MODE` | required | `selfsigned` or `acme`. Compose fails without it. |
 | `TLS_DIR` | `./tls` | Directory created by `scripts/provision/65_tls.sh`; only `server/` (leaf cert + key) is mounted, read-only. The CA key is never mounted. |
 | `TRAEFIK_VERSION` | pinned in `docker-compose.yml` | Image tag used as build arg. |
@@ -57,4 +59,4 @@ open port 80 until US-PROXY-003; until then, test from the VM itself.
 
 ## Out of scope here
 
-HTTP→HTTPS redirect, HSTS and ACME (US-PROXY-002 AC-3/AC-4); UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).
+ACME (US-PROXY-002 AC-4); UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).
