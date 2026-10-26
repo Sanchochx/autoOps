@@ -20,7 +20,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Traefik Service in Compose**
+- [x] **AC-1: Traefik Service in Compose**
   - `traefik` service with a pinned image version. Static and dynamic configuration under `infra/traefik/` (file provider; the Docker socket is NOT mounted).
   - New bridge network `edge_net`. Hardening: `read_only`, `cap_drop: [ALL]` plus `NET_BIND_SERVICE`, `no-new-privileges`. Dashboard disabled, JSON logs to stdout/stderr, no local log files.
   - Healthcheck through Traefik's `ping` endpoint.

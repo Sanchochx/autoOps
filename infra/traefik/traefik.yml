@@ -1,0 +1,35 @@
+# Traefik static configuration (US-PROXY-001), mounted read-only at /etc/traefik/traefik.yml.
+# Only constants live here (container-internal ports, formats). Anything configurable
+# (domain, published host ports, image version) comes from the environment via docker-compose.yml.
+#
+# Deliberately absent:
+#   - `api`: the dashboard and the API are disabled (no router can expose them).
+#   - `providers.docker`: the Docker socket is never mounted; routes are declared as files.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+  # Internal-only entrypoint for the healthcheck. It is never published to the host
+  # and no router is attached to it.
+  traefik:
+    address: ":8082"
+
+ping:
+  entryPoint: traefik
+
+# Cloud-native logging: JSON to stderr (application log) and stdout (access log). No files.
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true

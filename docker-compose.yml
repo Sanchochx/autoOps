@@ -8,6 +8,7 @@
 #   frontend_net  host publishing + Internet egress (frontend, api-gateway)
 #   backend_net   api-gateway <-> postgres            (internal: no Internet or host access)
 #   mcp_net       api-gateway <-> MCP servers      (internal: no Internet or host access)
+#   edge_net      traefik <-> frontend, api-gateway (reverse proxy entry point; Internet egress for ACME)
 
 x-hardening: &hardening
   cap_drop: [ALL]
@@ -124,6 +125,26 @@ services:
       start_period: 5s
     networks: [frontend_net]
 
+  # Reverse proxy: static config + file provider only. The Docker socket is NOT mounted.
+  # Runs unprivileged; NET_BIND_SERVICE is kept so binding 80/443 never depends on sysctl defaults.
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3.7.16}
+    restart: unless-stopped
+    <<: *hardening
+    cap_add: [NET_BIND_SERVICE]
+    user: "65532:65532"
+    read_only: true
+    volumes:
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks: [edge_net]
+
   # Alembic migrations: explicit step, not run by `up`.
   #   docker compose --profile tools run --rm migrate
   migrate:
@@ -143,6 +164,8 @@ services:
     networks: [backend_net]
 
 networks:
+  edge_net:
+    driver: bridge
   frontend_net:
     driver: bridge
   backend_net:
