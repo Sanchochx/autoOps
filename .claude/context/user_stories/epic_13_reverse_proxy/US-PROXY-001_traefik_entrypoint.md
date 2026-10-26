@@ -31,7 +31,7 @@
   - `frontend` and `api-gateway` join `edge_net` and lose their `ports:`. Only Traefik publishes a host port (80 at this stage).
   - **Verification:** `curl -H "Host: $DOMAIN"` returns the frontend on `/` and the gateway on its API/health routes; direct access to `PORT` and `FRONTEND_PORT` fails.
 
-- [ ] **AC-3: Same-Origin Configuration**
+- [x] **AC-3: Same-Origin Configuration**
   - New variables (`DOMAIN`, Traefik image version, published HTTP port) in `.env.example`, `scripts/ops/validate_env.sh` and, where applicable, `scripts/provision/provision.env.example`.
   - `VITE_API_BASE_URL`, `VITE_WS_BASE_URL` and `CORS_ALLOWED_ORIGINS` documented for the single-origin model.
   - No domains, ports or routes hardcoded in the Traefik configuration: everything comes from the environment.

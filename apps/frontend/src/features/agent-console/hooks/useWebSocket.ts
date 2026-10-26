@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ConnectionStatus } from '../models/agentMessage'
 import { parsePayload } from '../services/parsePayload'
 import { openReconnectingSocket } from '../services/reconnectingSocket'
+import { resolveWsBaseUrl } from '../services/resolveWsBaseUrl'
 import { useAiStore } from '../store/useAiStore'
 
 /** Streaming channel path relative to VITE_WS_BASE_URL. */
@@ -16,7 +17,7 @@ export function useWebSocket(): ConnectionStatus {
   useEffect(() => {
     if (!baseUrl) return undefined
     return openReconnectingSocket({
-      url: `${baseUrl}${STREAM_PATH}`,
+      url: `${resolveWsBaseUrl(baseUrl, window.location)}${STREAM_PATH}`,
       onMessage: (data) => addLog(parsePayload(data)),
       onStatusChange: setStatus,
     })

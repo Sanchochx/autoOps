@@ -24,8 +24,11 @@ They are public (visible in the bundle): never include secrets.
 
 | Build arg | Description | Example |
 |---|---|---|
-| `VITE_API_BASE_URL` | Base URL of the Gateway REST API | `http://localhost:8000` |
-| `VITE_WS_BASE_URL` | Base URL of the Gateway WebSockets | `ws://localhost:8000/ws` |
+| `VITE_API_BASE_URL` | Base URL of the Gateway REST API | `http://localhost:8000` (standalone), `/` (behind the proxy) |
+| `VITE_WS_BASE_URL` | Base URL of the Gateway WebSockets | `ws://localhost:8000/ws` (standalone), `/ws` (behind the proxy) |
+
+Behind Traefik (Docker Compose) both are same-origin paths set in `docker-compose.yml`, not read from `.env`.
+A path is resolved against the page origin, so the socket uses `wss://` when the page is served over HTTPS.
 
 ```bash
 docker build -t autoops-frontend \

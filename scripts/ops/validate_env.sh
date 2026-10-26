@@ -5,7 +5,7 @@
 #
 # Variables (read from the environment, falling back to ${APP_DIR}/.env, like docker compose):
 #   APP_DIR=<repo root>   directory with the .env file
-# Only enforced when ENVIRONMENT=production. Exit 0 = OK, 1 = insecure configuration.
+# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN and PUBLIC_SCHEME). Exit 0 = OK, 1 = insecure configuration.
 # Wired as ExecStartPre= in autoops.service (see infra/systemd/README.md).
 set -eo pipefail
 
@@ -56,6 +56,18 @@ for name in SECRET_KEY DB_PASSWORD; do
     failed=1
   fi
 done
+
+# Reverse proxy (US-PROXY-001): the public origin is built from these two.
+domain="$(env_value DOMAIN)"
+if [[ -z $domain || ${domain,,} == localhost ]]; then
+  log "ERROR: DOMAIN is empty or 'localhost'; set the host name Traefik must answer for."
+  failed=1
+fi
+scheme="$(env_value PUBLIC_SCHEME)"
+if [[ -n $scheme && $scheme != http && $scheme != https ]]; then
+  log "ERROR: PUBLIC_SCHEME='${scheme}' is invalid; use http or https."
+  failed=1
+fi
 
 ((failed == 0)) || { log "refusing to start with ENVIRONMENT=production."; exit 1; }
 log "OK: production secrets are not defaults."

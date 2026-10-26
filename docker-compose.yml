@@ -72,7 +72,8 @@ services:
       DEBUG: ${DEBUG:-False}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       SECRET_KEY: ${SECRET_KEY:?define SECRET_KEY en .env}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?define CORS_ALLOWED_ORIGINS en .env}
+      # Single origin behind the proxy: the dashboard is served from the public URL.
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_SCHEME:-http}://${DOMAIN:?define DOMAIN en .env}
       WS_BROADCAST_TIMEOUT_SECONDS: ${WS_BROADCAST_TIMEOUT_SECONDS:-2}
       # The `postgres` host is the service name on backend_net.
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
@@ -102,10 +103,12 @@ services:
   frontend:
     build:
       context: ./apps/frontend
-      # Vite embeds the VITE_* variables at build time: they must be URLs reachable from the browser.
+      # Vite embeds the VITE_* variables at build time. Behind the proxy the dashboard and the
+      # gateway share one origin, so these are paths resolved against the page origin (routes in
+      # infra/traefik/dynamic/routes.yml). They override the development values of .env.
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?define VITE_API_BASE_URL en .env}
-        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:?define VITE_WS_BASE_URL en .env}
+        VITE_API_BASE_URL: /
+        VITE_WS_BASE_URL: /ws
     restart: unless-stopped
     <<: *hardening
     read_only: true
