@@ -52,9 +52,12 @@ Bootstrap order: `10_users → 20_ssh → 30_fail2ban → 40_ufw → 50_os_basel
    `STACK_REQUIRED=0` so the runtime checks run too.
 9. **Reboot** (`sudo reboot`), wait for the host, and repeat step 8: all groups must still be `OK` and
    `docker compose ps` must show every service `healthy`.
-10. **End to end**: open `http://<DOMAIN>` (served by Traefik on `PROXY_HTTP_PORT`; map `DOMAIN` in the client's hosts
-    file), create a ticket and watch the agents' reasoning stream. Port 80 is not open in UFW until US-PROXY-003:
-    test from the VM itself or add it to `DOCKER_PUBLIC_PORTS` temporarily.
+10. **End to end**: from the VM, `venv/bin/python scripts/ops/e2e_https.py --ca /opt/autoops/tls/ca/ca.crt`
+    (set `E2E_CONNECT_ADDR=127.0.0.1` if `DOMAIN` does not resolve locally). It follows the `http`→`https`
+    redirect, creates a ticket over `https://` and waits for the agents' events over `wss://`. To use the dashboard
+    from the host's browser, import the local CA (see [`traefik/README.md`](traefik/README.md)), map `DOMAIN` in
+    the client's hosts file and open `https://<DOMAIN>`. Ports 80/443 are not open in UFW until US-PROXY-003: test
+    from the VM itself or add them to `DOCKER_PUBLIC_PORTS` temporarily.
 
 To prove `verify.sh` detects drift, alter a control (e.g. `sudo ufw disable`), run it (expect exit `1` and a `FAIL`
 row), then restore the control.
@@ -64,4 +67,4 @@ row), then restore the control.
 - `bootstrap.sh` refuses to run on anything but Ubuntu 26.04, as root, and without the required variables
   (`ADMIN_USER`, `ADMIN_SSH_PUBKEY_FILE`, `FAIL2BAN_IGNOREIP`). Nothing is touched before those checks pass.
 - It never cancels the SSH rollback by itself unless `--confirm-ssh` is given.
-- Out of scope: instance provisioning (Terraform), auditd/Lynis. TLS and CI/CD are Phase 5 (US-PROXY-002, Epic 14).
+- Out of scope: instance provisioning (Terraform), auditd/Lynis. TLS is served by Traefik (US-PROXY-002, [`traefik/README.md`](traefik/README.md)); CI/CD is Epic 14.

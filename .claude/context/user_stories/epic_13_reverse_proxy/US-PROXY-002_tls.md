@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 8 pts
 **Dependencies:** US-PROXY-001, US-SYS-003
-**Status:** In progress
+**Status:** Done
 
 ---
 
@@ -54,7 +54,7 @@
   - The HTTP-01 challenge keeps working with the mandatory redirect in place.
   - **Verification (configuration only, no issuance is possible here):** with `TLS_MODE=acme`, `docker compose config` is valid, Traefik starts `healthy`, its log shows the resolver registered and no file-certificate is loaded; invalid combinations are rejected (see AC-5).
 
-- [ ] **AC-5: Public Origin over HTTPS, Validation, End-to-End and Documentation**
+- [x] **AC-5: Public Origin over HTTPS, Validation, End-to-End and Documentation**
   - `.env.example`, `provision.env.example`, `validate_env.sh` and the compose document and enforce: `TLS_MODE` ∈ {`selfsigned`, `acme`}; `ACME_EMAIL` non-empty when `acme`; `PUBLIC_SCHEME=https` required for `acme`; `PROXY_HTTPS_PORT`, `HSTS_MAX_AGE_SECONDS`, `TLS_DIR`, `TLS_EXTRA_SANS`.
   - With `PUBLIC_SCHEME=https` the CORS origin becomes `https://$DOMAIN` and the dashboard opens its socket as `wss://` (already resolved from the page origin).
   - `infra/traefik/README.md` and `infra/README.md` updated, including how to export `ca.crt` and import it on the machine hosting the VM, and how to switch to Let's Encrypt in production. `CLAUDE.md` updated.

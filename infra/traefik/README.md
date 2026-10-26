@@ -60,6 +60,35 @@ owners and modes); otherwise Traefik finds no PEM files and fails to start.
 To test from a browser, map `<DOMAIN>` to the host IP in the client's hosts file. The host firewall does not
 open port 80 until US-PROXY-003; until then, test from the VM itself.
 
+## Trusting the local CA (`TLS_MODE=selfsigned`)
+
+The CA certificate is public; its key never leaves the host. Export it and import it once on the machine that
+hosts the VM:
+
+```bash
+scp <user>@<vm>:/opt/autoops/tls/ca/ca.crt ./autoops-local-ca.crt
+# Linux:   sudo cp autoops-local-ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates
+# macOS:   Keychain Access -> import -> set "Always Trust"
+# Windows: certmgr.msc -> Trusted Root Certification Authorities -> import
+# Firefox keeps its own store: Settings -> Privacy & Security -> Certificates -> Authorities -> import
+```
+
+Map `DOMAIN` to the VM's IP in the machine's hosts file and open `https://<DOMAIN>`. Once a browser has seen
+HSTS for `DOMAIN` it refuses plain HTTP for `HSTS_MAX_AGE_SECONDS`; lower it if that is unwanted.
+
+## Switching to Let's Encrypt (production)
+
+In `/opt/autoops/.env`: `TLS_MODE=acme`, `ACME_EMAIL=<real address>`, `PUBLIC_SCHEME=https` (and `DOMAIN` a public
+name pointing at the host, with ports 80 and 443 reachable from the internet: HTTP-01 is answered on port 80).
+Try first with `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`, then empty it for
+production certificates. Restart `autoops.service`; `scripts/ops/validate_env.sh` rejects incomplete combinations.
+No code or image change is needed. Certificates persist in the `acme` named volume.
+
+## End-to-end check
+
+`venv/bin/python scripts/ops/e2e_https.py --ca <TLS_DIR>/ca/ca.crt`: redirect, ticket over `https://` and agent
+events over `wss://`.
+
 ## Out of scope here
 
 UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).

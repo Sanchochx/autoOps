@@ -5,7 +5,7 @@
 #
 # Variables (read from the environment, falling back to ${APP_DIR}/.env, like docker compose):
 #   APP_DIR=<repo root>   directory with the .env file
-# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN and PUBLIC_SCHEME). Exit 0 = OK, 1 = insecure configuration.
+# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN, PUBLIC_SCHEME and the TLS settings). Exit 0 = OK, 1 = insecure configuration.
 # Wired as ExecStartPre= in autoops.service (see infra/systemd/README.md).
 set -eo pipefail
 
@@ -68,6 +68,34 @@ if [[ -n $scheme && $scheme != http && $scheme != https ]]; then
   log "ERROR: PUBLIC_SCHEME='${scheme}' is invalid; use http or https."
   failed=1
 fi
+
+
+# TLS (US-PROXY-002): no default for TLS_MODE, so a production host never serves a local-CA certificate by accident.
+tls_mode="$(env_value TLS_MODE)"
+case $tls_mode in
+  selfsigned) ;;
+  acme)
+    if [[ -z $(env_value ACME_EMAIL) ]]; then
+      log "ERROR: ACME_EMAIL is required when TLS_MODE=acme."
+      failed=1
+    fi
+    if [[ $scheme != https ]]; then
+      log "ERROR: PUBLIC_SCHEME must be https when TLS_MODE=acme (CORS origin and wss:// depend on it)."
+      failed=1
+    fi
+    ;;
+  *)
+    log "ERROR: TLS_MODE='${tls_mode}' is invalid; use selfsigned or acme."
+    failed=1
+    ;;
+esac
+for name in PROXY_HTTPS_PORT HSTS_MAX_AGE_SECONDS; do
+  value="$(env_value "$name")"
+  if [[ -n $value && ! $value =~ ^[0-9]+$ ]]; then
+    log "ERROR: ${name}='${value}' must be a non-negative integer."
+    failed=1
+  fi
+done
 
 ((failed == 0)) || { log "refusing to start with ENVIRONMENT=production."; exit 1; }
 log "OK: production secrets are not defaults."

@@ -82,7 +82,7 @@ sudo ./scripts/provision/verify.sh --env-file provision.env      # verify all co
 # Start all services in the background
 docker compose up -d --build
 
-# Only Traefik publishes a host port (http://$DOMAIN:$PROXY_HTTP_PORT); the gateway and frontend
+# Only Traefik publishes host ports (https://$DOMAIN:$PROXY_HTTPS_PORT; $PROXY_HTTP_PORT redirects to it); the gateway and frontend
 # are reachable only through it (/api, /ws -> gateway; / -> frontend). See infra/traefik/README.md
 
 # Follow unified logs
@@ -194,8 +194,11 @@ VITE_WS_BASE_URL=ws://localhost:8000/ws
 
 # Reverse proxy (Traefik)
 DOMAIN=autoops.local      # required; the only Host Traefik routes
-PUBLIC_SCHEME=http        # http | https; forms the CORS origin with DOMAIN
-PROXY_HTTP_PORT=80
+PUBLIC_SCHEME=https       # http | https; forms the CORS origin with DOMAIN (https required for TLS_MODE=acme)
+PROXY_HTTP_PORT=80        # only redirects to HTTPS
+PROXY_HTTPS_PORT=443
+TLS_MODE=selfsigned       # required: selfsigned (local CA) | acme (Let's Encrypt HTTP-01); needs ACME_EMAIL
+HSTS_MAX_AGE_SECONDS=31536000
 ```
 
 ---
