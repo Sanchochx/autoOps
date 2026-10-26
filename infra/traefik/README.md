@@ -13,8 +13,9 @@ browser ──► :PROXY_HTTP_PORT ─► traefik ─┬─ /api, /ws ─► api
 | File | Purpose |
 |---|---|
 | `Dockerfile` | `FROM traefik:${TRAEFIK_VERSION}` with the configuration baked in (`chmod -R a+rX`), so it never depends on host file permissions. Publishable to GHCR (CI/CD). |
-| `traefik.yml` | Static configuration: `web` entrypoint (`:80`), internal `traefik` entrypoint (`:8082`, ping only, never published), JSON logs to stdout/stderr. No `api`/dashboard, no Docker provider. |
-| `dynamic/routes.yml` | Routers and services (file provider). `DOMAIN` and `GATEWAY_PORT` are read from the environment with Go templating. |
+| `traefik.yml` | Static configuration: `web` (`:80`) and `websecure` (`:443`) entrypoints, internal `traefik` entrypoint (`:8082`, ping only, never published), JSON logs to stdout/stderr. No `api`/dashboard, no Docker provider. |
+| `dynamic/routes.yml` | Routers and services (file provider), served on `websecure` with `tls`. `DOMAIN` and `GATEWAY_PORT` are read from the environment with Go templating. |
+| `dynamic/tls.yml` | Certificate source chosen by `TLS_MODE` (templating): `selfsigned` loads `/etc/traefik/tls/{cert,key}.pem`. |
 
 ## Security posture
 
@@ -30,6 +31,9 @@ browser ──► :PROXY_HTTP_PORT ─► traefik ─┬─ /api, /ws ─► api
 | `DOMAIN` | required | Host name Traefik answers for. Compose and `validate_env.sh` fail without it. |
 | `PUBLIC_SCHEME` | `http` | `http` or `https`; with `DOMAIN` it forms the origin allowed by CORS. |
 | `PROXY_HTTP_PORT` | `80` | Host port published for HTTP. |
+| `PROXY_HTTPS_PORT` | `443` | Host port published for HTTPS. |
+| `TLS_MODE` | required | `selfsigned` or `acme`. Compose fails without it. |
+| `TLS_DIR` | `./tls` | Directory created by `scripts/provision/65_tls.sh`; only `server/` (leaf cert + key) is mounted, read-only. The CA key is never mounted. |
 | `TRAEFIK_VERSION` | pinned in `docker-compose.yml` | Image tag used as build arg. |
 
 The frontend is built with same-origin paths (`VITE_API_BASE_URL=/`, `VITE_WS_BASE_URL=/ws`, set in
@@ -40,13 +44,17 @@ The frontend is built with same-origin paths (`VITE_API_BASE_URL=/`, `VITE_WS_BA
 ```bash
 docker compose up -d --build --wait            # builds the traefik image with the stack
 docker compose logs -f traefik                 # JSON application and access logs
-curl -si -H 'Host: <DOMAIN>' http://127.0.0.1:<PROXY_HTTP_PORT>/          # frontend
-curl -si -H 'Host: <DOMAIN>' http://127.0.0.1:<PROXY_HTTP_PORT>/api/v1/tickets
+curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/               # frontend
+curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/api/v1/tickets
 ```
+
+`65_tls.sh` writes to `${APP_DIR}/tls` (`/opt/autoops/tls`) unless `TLS_DIR` is set. For a checkout run
+outside `/opt/autoops`, generate into the checkout (`TLS_DIR=./tls`) or copy the result with `cp -a` (keeps
+owners and modes); otherwise Traefik finds no PEM files and fails to start.
 
 To test from a browser, map `<DOMAIN>` to the host IP in the client's hosts file. The host firewall does not
 open port 80 until US-PROXY-003; until then, test from the VM itself.
 
 ## Out of scope here
 
-TLS, HTTP→HTTPS redirect and HSTS (US-PROXY-002); UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).
+HTTP→HTTPS redirect, HSTS and ACME (US-PROXY-002 AC-3/AC-4); UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).

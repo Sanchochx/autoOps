@@ -140,8 +140,14 @@ services:
     environment:
       DOMAIN: ${DOMAIN:?define DOMAIN en .env}
       GATEWAY_PORT: ${PORT:?define PORT en .env}
+      TLS_MODE: ${TLS_MODE:?define TLS_MODE en .env (selfsigned | acme)}
     ports:
       - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    volumes:
+      # Leaf certificate and key only (written by scripts/provision/65_tls.sh); the CA key is never
+      # mounted. TLS_DIR defaults to ./tls, which is ${APP_DIR}/tls on the host.
+      - ${TLS_DIR:-./tls}/server:/etc/traefik/tls:ro
     depends_on:
       api-gateway:
         condition: service_healthy

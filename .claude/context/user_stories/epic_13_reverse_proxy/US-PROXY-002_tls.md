@@ -38,7 +38,7 @@
   - Matching `checks/65_tls.sh` (wired into `verify.sh`): chain verifies against the CA, SAN contains `DOMAIN`, more than 30 days left, modes and owners as above, CA key absent from `server/`.
   - **Verification:** generation can be run unprivileged against a temporary directory (`openssl verify`, `openssl x509 -text`); on the VM, `bootstrap.sh` twice (second run: "Sin cambios") and `verify.sh`.
 
-- [ ] **AC-2: HTTPS Entrypoint with Certificates from Files (`TLS_MODE=selfsigned`)**
+- [x] **AC-2: HTTPS Entrypoint with Certificates from Files (`TLS_MODE=selfsigned`)**
   - Traefik gets a `websecure` entrypoint (`:443`); the compose publishes `${PROXY_HTTPS_PORT:-443}:443`. The leaf directory is mounted read-only; the routers of US-PROXY-001 are served on `websecure` with `tls`.
   - The certificate source is chosen by `TLS_MODE` through templating in the baked dynamic configuration (no second image, no code change).
   - **Verification:** `curl --cacert <ca.crt> --resolve $DOMAIN:443:127.0.0.1 https://$DOMAIN/` returns the frontend and `/api/v1/tickets` the API; `openssl s_client` shows the leaf signed by the local CA; without `--cacert` curl rejects it.

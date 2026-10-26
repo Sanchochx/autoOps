@@ -13,6 +13,8 @@ global:
 entryPoints:
   web:
     address: ":80"
+  websecure:
+    address: ":443"
   # Internal-only entrypoint for the healthcheck. It is never published to the host
   # and no router is attached to it.
   traefik:

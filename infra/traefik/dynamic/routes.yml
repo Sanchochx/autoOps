@@ -4,17 +4,21 @@
 # `{{ env "..." }}` is Go templating evaluated by the file provider; the variables come from
 # the traefik service in docker-compose.yml. A request for any other Host gets a 404 from Traefik.
 # WebSocket upgrades need no extra configuration.
+# Both routers are served on `websecure` with TLS (US-PROXY-002); the certificate source is
+# chosen in tls.yml. Plain HTTP on `web` has no router until the redirect of AC-3.
 http:
   routers:
     gateway:
-      entryPoints: [web]
+      entryPoints: [websecure]
       rule: 'Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`))'
       priority: 20
+      tls: {}
       service: gateway
     frontend:
-      entryPoints: [web]
+      entryPoints: [websecure]
       rule: 'Host(`{{ env "DOMAIN" }}`)'
       priority: 10
+      tls: {}
       service: frontend
 
   services:
