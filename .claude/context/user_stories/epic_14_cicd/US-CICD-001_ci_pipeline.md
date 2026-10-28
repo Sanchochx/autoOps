@@ -43,10 +43,11 @@
   - **Verification:** locally, `env -i` with only `PATH` (plus the guard on `PYTHONPATH`) over a `git archive` export and a fresh virtualenv built from those requirements files runs the whole suite green; the job is green on a pull request and red when a test is broken on purpose.
 
 - [ ] **AC-3: Frontend Lint, Typecheck and Build**
-  - `.nvmrc` with the Node major used by the project (matches `@types/node`), and the job `frontend` uses it with `actions/setup-node` and the npm cache over `apps/frontend/package-lock.json`.
-  - Steps in `apps/frontend`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`. A `typecheck` script (`tsc -b`) is added to `package.json` so the type error and the bundling error are reported as separate steps.
-  - The build uses the same-origin `VITE_*` values the container build uses (no secret involved); `dist/` is not uploaded.
-  - **Verification:** green locally with a clean `node_modules`; red when a type error or a lint error is introduced on purpose, each failing at its own step.
+  - `apps/frontend/.nvmrc` pins Node `22` (what development uses; satisfies the `^20.19.0 || >=22.12.0` engines of Vite and oxlint). The job `frontend` reads it with `actions/setup-node` (`node-version-file`) and caches npm over `apps/frontend/package-lock.json`.
+  - Steps in `apps/frontend`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`. A `typecheck` script (`tsc -b`) is added to `package.json` so the type error and the bundling error are reported as separate steps; `build` is unchanged (`tsc -b && vite build`, the one the Dockerfile runs).
+  - The build uses the same-origin values the Compose build passes as build-args (`VITE_API_BASE_URL=/`, `VITE_WS_BASE_URL=/ws`; public, no secret); `dist/` is not uploaded.
+  - **Verification:** green locally from a `git ls-files` export (no `node_modules`, `dist` or `.env`); a type error fails `typecheck` only and a conditional hook fails `lint` only; both are red on a pull request when introduced on purpose.
+  - **Known drift (not changed here):** `apps/frontend/Dockerfile` builds with `node:20-alpine` while CI and development use Node 22. Aligning the image is proposed for US-CICD-002, where the images are rebuilt anyway.
 
 - [ ] **AC-4: Compose Validation and Shellcheck**
   - Job `compose`: `cp .env.example .env`, then `docker compose config -q` for the matrix `TLS_MODE` ∈ {`selfsigned`, `acme` (with `ACME_EMAIL` set)} × {base file, base + `docker-compose.dev-db.yml`}. A fifth step proves the guard still bites: with `TLS_MODE` unset the validation must fail (the compose refuses to start without it).

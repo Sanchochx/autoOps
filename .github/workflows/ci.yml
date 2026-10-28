@@ -44,10 +44,35 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/.github/ci/nonet
         run: pytest tests/ -v
 
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      # Same-origin values the Compose build passes as build-args (public, no secrets).
+      - name: Build
+        env:
+          VITE_API_BASE_URL: /
+          VITE_WS_BASE_URL: /ws
+        run: npm run build
+
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend]
+    needs: [backend, frontend]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
