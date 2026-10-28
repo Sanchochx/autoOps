@@ -69,10 +69,63 @@ jobs:
           VITE_WS_BASE_URL: /ws
         run: npm run build
 
+  # `docker compose config` resolves every ${VAR:?...} guard, so a renamed or missing variable fails here.
+  # .env.example is the only environment CI ever sees; its placeholders would be rejected by validate_env.sh
+  # in production, which is intended.
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        tls_mode: [selfsigned, acme]
+        files: ["-f docker-compose.yml", "-f docker-compose.yml -f docker-compose.dev-db.yml"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cp .env.example .env
+      - name: Validate the Compose configuration
+        env:
+          TLS_MODE: ${{ matrix.tls_mode }}
+          ACME_EMAIL: ${{ matrix.tls_mode == 'acme' && 'ci@example.com' || '' }}
+          PUBLIC_SCHEME: ${{ matrix.tls_mode == 'acme' && 'https' || 'http' }}
+        run: docker compose ${{ matrix.files }} config -q
+
+  # TLS_MODE has no default on purpose: the guard must still reject a missing value.
+  compose-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sed '/^TLS_MODE=/d' .env.example > .env
+      - name: TLS_MODE unset must be rejected
+        run: |
+          if out="$(docker compose config -q 2>&1)"; then
+            echo "docker compose config accepted a configuration without TLS_MODE" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q 'TLS_MODE' <<<"$out" || { echo "rejected, but not because of TLS_MODE" >&2; exit 1; }
+
+  # Lints every tracked shell script with the shellcheck preinstalled on the runner (see .shellcheckrc).
+  shellcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: shellcheck --version
+      - name: Lint shell scripts
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
+
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend, frontend]
+    needs: [backend, frontend, compose, compose-guard, shellcheck]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

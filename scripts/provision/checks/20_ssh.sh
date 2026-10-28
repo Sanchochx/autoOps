@@ -49,6 +49,7 @@ check "AllowAgentForwarding no" sshd_is allowagentforwarding no
 check "AllowTcpForwarding no" sshd_is allowtcpforwarding no
 check "ClientAliveInterval 300 / CountMax 2" bash -c "$(declare -f sshd_is); sshd_is clientaliveinterval 300 && sshd_is clientalivecountmax 2"
 check "banner configurado" sshd_is banner /etc/ssh/autoops-banner
+# shellcheck disable=SC2088 # literal text of the description, not a path
 check "~/.ssh de ${ADMIN_USER} es 700" admin_dir
 check "authorized_keys de ${ADMIN_USER} es 600" admin_auth
 check "${ADMIN_USER} tiene una llave ed25519" admin_has_key

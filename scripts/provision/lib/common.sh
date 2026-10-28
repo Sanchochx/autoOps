@@ -51,6 +51,7 @@ ensure_perms() {
 # ensure_file <path> <content>: writes the file only if it changes and sets
 # FILE_CHANGED=1 (or 0) so the caller can decide whether to reload something.
 FILE_CHANGED=0
+# shellcheck disable=SC2034 # FILE_CHANGED is read by the scripts that source this library
 ensure_file() {
   local path=$1 content=$2
   FILE_CHANGED=0

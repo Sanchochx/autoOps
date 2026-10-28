@@ -4,6 +4,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/ufw_rules.sh"
 
 DOCKER_USER_TPL="${REPO_ROOT}/infra/firewall/docker-user.rules.tpl"
+# shellcheck disable=SC2034 # read by the scripts that source this library
 AFTER_RULES=/etc/ufw/after.rules
 BLOCK_BEGIN='# BEGIN AUTOOPS DOCKER-USER'
 BLOCK_END='# END AUTOOPS DOCKER-USER'
