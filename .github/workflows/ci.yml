@@ -1,0 +1,42 @@
+name: CI
+
+# US-CICD-001. Validates code and configuration; it never builds images or deploys, and it needs no secrets.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes the running one; runs on develop/main are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Placeholder replaced by the real jobs (backend, frontend, compose, shellcheck) in the next criteria.
+  placeholder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: git ls-files | head -n 20
+
+  # The only status branch protection requires: it passes when every job in `needs` succeeded.
+  # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
+  ci:
+    needs: [placeholder]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' >/dev/null
