@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 3 pts
 **Dependencies:** US-PROXY-002
-**Status:** Pending
+**Status:** Done
 
 ---
 
@@ -49,7 +49,7 @@
   - `verify.sh` keeps exiting `1` on any failure and the new checks fail when a port is added by hand (negative test).
   - **Verification:** `sudo ./scripts/provision/verify.sh` green on the VM; after temporarily adding `ports:` to a service (or a rule to UFW) it goes red and names the offending port.
 
-- [ ] **AC-5: External Validation and Closing**
+- [x] **AC-5: External Validation and Closing**
   - From another machine (or the VirtualBox host): `https://$DOMAIN/` works (with the local CA), `http://` redirects, and `PORT`, `FRONTEND_PORT`, the database and MCP ports time out or are refused.
   - Evidence documented in `infra/firewall/README.md`; plan updated (Epic 13 at 100%, Phase 5 at 3/8).
   - **Verification:** `nmap -p- <vm-ip>` from outside shows only SSH (per `ADMIN_CIDR` policy) and the proxy ports.

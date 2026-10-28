@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   25                         │
+│  ✅ Completed:                   26                         │
 │  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    6                          │
+│  ⏸️  Pending:                    5                          │
 │                                                             │
-│  Progress: [████████░░] 80% (25/31)                          │
+│  Progress: [████████░░] 84% (26/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,7 +56,7 @@
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
-| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 2 | 0 | 1 | [███████░░░] 67% |
+| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 0 | 0 | 5 | [░░░░░░░░░░] 0% |
 
 ---
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [██░░░░░░░░] 25% (2/8)
+**Progress:** [███░░░░░░░] 38% (3/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -420,7 +420,7 @@
 - **Acceptance Criteria:** 5
 - **Decisions:** local root CA (importable once on the host machine) signs the leaf; HTTP→HTTPS redirect is mandatory in every mode; `TLS_MODE` (`selfsigned`|`acme`) has no default; the CA key never reaches the proxy.
 
-#### [~] US-PROXY-003: Close the Perimeter
+#### [x] US-PROXY-003: Close the Perimeter
 - **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-003_close_perimeter.md`
 - **Priority:** HIGH
 - **Estimate:** 3 pts

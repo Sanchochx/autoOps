@@ -50,10 +50,39 @@ Traefik is the only service that publishes host ports, so the only public ports 
 - fail2ban bans (`banaction=ufw`) act on `INPUT`: they do not block ports published by Docker.
 - The block applies to TCP; if you publish UDP, add its rule explicitly.
 
-## External scan (AC-4)
+## External validation (US-PROXY-003 AC-5)
+
+Run both from ANOTHER machine (or the VirtualBox host), never from the VM:
 
 ```bash
-nmap -Pn -sS -p- <vm-ip>      # must show only SSH and the defined public ports
+# 1. Perimeter as designed: proxy ports answer (http redirects, https serves with the local CA),
+#    and the gateway, old frontend, PostgreSQL, MCP and Docker API ports do not.
+DOMAIN=<domain> ./scripts/ops/check_perimeter.sh <vm-ip> --ca <ca.crt>
+
+# 2. Full TCP scan: only SSH (per ADMIN_CIDR) and the proxy ports may show up.
+nmap -Pn -sS -p- <vm-ip>
 ```
 
-_Result: pending, to be attached after applying the block._
+`ca.crt` is exported as described in [`../traefik/README.md`](../traefik/README.md). `CLOSED_PORTS` overrides the list of
+ports that must stay closed.
+
+Evidence (US-PROXY-003 AC-5), `check_perimeter.sh` against the VM at `10.0.2.15`:
+
+```
+[ OK ]   puerto 80 abierto (proxy)
+[ OK ]   puerto 443 abierto (proxy)
+[ OK ]   http redirige a https (301 https://autoops.local/)
+[ OK ]   https://autoops.local:443/ responde 200 (cadena verificada con la CA local)
+[ OK ]   puerto 8000 cerrado o filtrado
+[ OK ]   puerto 3000 cerrado o filtrado
+[ OK ]   puerto 5432 cerrado o filtrado
+[ OK ]   puerto 5001 cerrado o filtrado
+[ OK ]   puerto 2375 cerrado o filtrado
+[ OK ]   puerto 2376 cerrado o filtrado
+
+OK: el perímetro de 10.0.2.15 es el diseñado.
+```
+
+Caveats: `10.0.2.15` is VirtualBox's default NAT address of the guest, so confirm the run came from a different
+machine than the VM (host-only or bridged adapter) if this evidence has to count as an outside view. The full
+`nmap -p-` output was not attached; repeat it with the command above when the VM has a reachable second adapter.
