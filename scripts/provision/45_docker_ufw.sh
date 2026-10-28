@@ -5,9 +5,10 @@
 #
 # Variables (all optional):
 #   DOCKER_EXT_IFACES     external interfaces, space-separated; default: those of the default route
-#   DOCKER_PUBLIC_PORTS   host ports reachable from outside; default: PORT and FRONTEND_PORT from APP_ENV_FILE
-#   APP_ENV_FILE          deployment .env (default /opt/autoops/.env)
-#   UFW_WEB_PORTS         web ports (80/443) that are also allowed; same value as in 40_ufw.sh
+#   DOCKER_PUBLIC_PORTS   extra host ports reachable from outside (default: none)
+#   APP_ENV_FILE          deployment .env (default ${APP_DIR:-/opt/autoops}/.env)
+#   UFW_WEB_PORTS         web ports always allowed; default: PROXY_HTTP_PORT and PROXY_HTTPS_PORT from
+#                         APP_ENV_FILE (same resolution as 40_ufw.sh, so UFW and DOCKER-USER agree)
 #   DOCKER_UFW_DRY_RUN=1  prints the block and exits without changing anything
 #
 # Inserts a managed block into /etc/ufw/after.rules (DOCKER-USER chain). Before reloading UFW it

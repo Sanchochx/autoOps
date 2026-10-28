@@ -34,7 +34,7 @@
   - Still idempotent: a second run reports "Sin cambios"; SSH rules and `ADMIN_CIDR` behavior are untouched.
   - **Verification:** dry-run/rule rendering with the helpers in `lib/ufw_rules.sh` for default and custom ports; on the VM, `ufw status` lists SSH plus the two proxy ports and nothing else.
 
-- [ ] **AC-2: `DOCKER-USER` Chain Coherent with the Proxy**
+- [x] **AC-2: `DOCKER-USER` Chain Coherent with the Proxy**
   - `45_docker_ufw.sh` and `lib/docker_ufw_rules.sh`: the default of `DOCKER_PUBLIC_PORTS` becomes the proxy ports (no longer `PORT` + `FRONTEND_PORT`). Containers' published ports follow the same variables as the compose (`${PROXY_HTTP_PORT:-80}`, `${PROXY_HTTPS_PORT:-443}`).
   - Warning when the resolved list includes `PORT`/`FRONTEND_PORT` from `APP_ENV_FILE`.
   - **Verification:** `DOCKER_UFW_DRY_RUN=1` prints a block that accepts only the proxy ports; applied twice on the VM, the second run reports the block up to date.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verifies the controls of US-NET-002 (read-only). Same variables as 45_docker_ufw.sh:
 #
-#   sudo [DOCKER_EXT_IFACES=...] [DOCKER_PUBLIC_PORTS="8000 3000"] ./scripts/provision/checks/45_docker_ufw.sh
+#   sudo [DOCKER_EXT_IFACES=...] [DOCKER_PUBLIC_PORTS="..."] [APP_ENV_FILE=<.env>] ./scripts/provision/checks/45_docker_ufw.sh
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
