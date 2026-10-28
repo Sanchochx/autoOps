@@ -56,8 +56,8 @@ Bootstrap order: `10_users → 20_ssh → 30_fail2ban → 40_ufw → 50_os_basel
     (set `E2E_CONNECT_ADDR=127.0.0.1` if `DOMAIN` does not resolve locally). It follows the `http`→`https`
     redirect, creates a ticket over `https://` and waits for the agents' events over `wss://`. To use the dashboard
     from the host's browser, import the local CA (see [`traefik/README.md`](traefik/README.md)), map `DOMAIN` in
-    the client's hosts file and open `https://<DOMAIN>`. Ports 80/443 are not open in UFW until US-PROXY-003: test
-    from the VM itself or add them to `DOCKER_PUBLIC_PORTS` temporarily.
+    the client's hosts file and open `https://<DOMAIN>`. UFW and `DOCKER-USER` open only the proxy ports
+    (`PROXY_HTTP_PORT` / `PROXY_HTTPS_PORT`, 80/443 by default), so this also works from another machine.
 
 To prove `verify.sh` detects drift, alter a control (e.g. `sudo ufw disable`), run it (expect exit `1` and a `FAIL`
 row), then restore the control.

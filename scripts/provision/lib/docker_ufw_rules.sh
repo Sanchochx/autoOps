@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 # Expected DOCKER-USER block, shared by 45_docker_ufw.sh and its check. Loaded with `source`.
 # Requires lib/common.sh and REPO_ROOT.
+source "$(dirname "${BASH_SOURCE[0]}")/ufw_rules.sh"
 
 DOCKER_USER_TPL="${REPO_ROOT}/infra/firewall/docker-user.rules.tpl"
+# shellcheck disable=SC2034 # read by the scripts that source this library
 AFTER_RULES=/etc/ufw/after.rules
 BLOCK_BEGIN='# BEGIN AUTOOPS DOCKER-USER'
 BLOCK_END='# END AUTOOPS DOCKER-USER'
 
-# env_value <file> <KEY>: value of KEY=value without executing or sourcing the file.
-env_value() {
-  sed -nE "s/^[[:space:]]*$2=[\"']?([^\"'#[:space:]]*).*/\1/p" "$1" 2>/dev/null | tail -n1
-}
-
 # resolve_public_ports: host ports that may receive external traffic to containers.
-# DOCKER_PUBLIC_PORTS takes precedence; if empty, PORT and FRONTEND_PORT from APP_ENV_FILE. Always
-# UFW_WEB_PORTS (80/443 from Phase 5) are added so UFW and DOCKER-USER agree.
+# Always the web ports UFW opens (resolve_web_ports: the proxy's PROXY_HTTP_PORT / PROXY_HTTPS_PORT unless
+# UFW_WEB_PORTS overrides them) so UFW and DOCKER-USER agree; DOCKER_PUBLIC_PORTS may add more.
+# Warns if the list still contains the legacy PORT / FRONTEND_PORT of APP_ENV_FILE (US-PROXY-003).
 resolve_public_ports() {
-  local ports="${DOCKER_PUBLIC_PORTS:-}" env_file="${APP_ENV_FILE:-/opt/autoops/.env}" port
-  if [[ -z $ports && -r $env_file ]]; then
-    ports="$(env_value "$env_file" PORT) $(env_value "$env_file" FRONTEND_PORT)"
-  fi
-  ports="${ports} ${UFW_WEB_PORTS:-}"
+  local env_file="${APP_ENV_FILE:-${APP_DIR:-/opt/autoops}/.env}" ports port legacy key
+  ports="${DOCKER_PUBLIC_PORTS:-} $(resolve_web_ports)"
   for port in $ports; do
     [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Puerto público inválido: '${port}'."
   done
   # shellcheck disable=SC2086
-  printf '%s\n' $ports | sort -nu | paste -sd' '
+  ports="$(printf '%s\n' $ports | sort -nu | paste -sd' ')"
+  for key in PORT FRONTEND_PORT; do
+    legacy="$(env_value "$env_file" "$key")"
+    [[ -n $legacy && " ${ports} " == *" ${legacy} "* ]] \
+      && log_warn "El puerto ${legacy} (${key}) sigue como público; Traefik es la única entrada. Quítalo de DOCKER_PUBLIC_PORTS/UFW_WEB_PORTS."
+  done
+  printf '%s\n' "$ports"
 }
 
 # resolve_ext_ifaces: interfaces through which external traffic arrives (DOCKER_EXT_IFACES or the default route).
@@ -81,4 +82,16 @@ insert_block() {
     }' "$file" >"$tmp" || { rm -f "$tmp"; return 1; }
   cat "$tmp" >"$file"
   rm -f "$tmp"
+}
+
+# external_host_ports <docker ps "Ports" field>: host ports published on non-loopback addresses, one per line.
+# Field format: "0.0.0.0:80->80/tcp, [::]:80->80/tcp, 127.0.0.1:5432->5432/tcp, 8000/tcp".
+# Loopback bindings (e.g. docker-compose.dev-db.yml) and unpublished ports are not reachable from outside.
+external_host_ports() {
+  local entry
+  while IFS= read -r entry; do
+    [[ $entry == *'->'* ]] || continue
+    case $entry in 127.* | '[::1]'*) continue ;; esac
+    sed -E 's/^.*:([0-9]+)(-[0-9]+)?->.*$/\1/' <<<"$entry"
+  done < <(tr ',' '\n' <<<"$1" | sed -E 's/^[[:space:]]+//')
 }

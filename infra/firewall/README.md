@@ -35,14 +35,14 @@ Docker evaluates `DOCKER-USER` first in `FORWARD` and never flushes it. The bloc
 | Variable | Description |
 |---|---|
 | `DOCKER_EXT_IFACES` | External interfaces, space-separated. Defaults to those on the default route. On VirtualBox with NAT + host-only, list both if both must be filtered |
-| `DOCKER_PUBLIC_PORTS` | Host ports reachable from outside. Defaults to `PORT` and `FRONTEND_PORT` from `APP_ENV_FILE` |
+| `DOCKER_PUBLIC_PORTS` | Extra host ports reachable from outside, on top of the proxy ports. Defaults to none; a warning is logged if it lists the gateway's `PORT` |
 | `APP_ENV_FILE` | Deployment `.env` (`/opt/autoops/.env`) |
-| `UFW_WEB_PORTS` | Added to the public ports (use the same value as in `40_ufw.sh`) |
+| `UFW_WEB_PORTS` | Always-public web ports. Defaults to `PROXY_HTTP_PORT` and `PROXY_HTTPS_PORT` from `APP_ENV_FILE` (what Traefik publishes), the same resolution as `40_ufw.sh` |
 | `DOCKER_UFW_DRY_RUN=1` | Prints the block without applying it |
 
-## Provisional decision (AC-3)
+## Public ports (US-PROXY-003)
 
-Until Phase 5 the Gateway (`PORT`) and the frontend (`FRONTEND_PORT`) are public through the allowed-ports list; the Gateway is closed off by the reverse proxy. `docker-compose.yml` is not modified.
+Traefik is the only service that publishes host ports, so the only public ports are `PROXY_HTTP_PORT` (redirects to HTTPS) and `PROXY_HTTPS_PORT`. UFW (`40_ufw.sh`) and `DOCKER-USER` (`45_docker_ufw.sh`) derive them from the same `.env` variables as `docker-compose.yml`, so they cannot drift apart. The gateway's `PORT` is internal to `edge_net`; the old frontend port no longer exists.
 
 ## Known limits
 
@@ -50,10 +50,52 @@ Until Phase 5 the Gateway (`PORT`) and the frontend (`FRONTEND_PORT`) are public
 - fail2ban bans (`banaction=ufw`) act on `INPUT`: they do not block ports published by Docker.
 - The block applies to TCP; if you publish UDP, add its rule explicitly.
 
-## External scan (AC-4)
+## External validation (US-PROXY-003 AC-5)
+
+Run both from ANOTHER machine (or the VirtualBox host), never from the VM:
 
 ```bash
-nmap -Pn -sS -p- <vm-ip>      # must show only SSH and the defined public ports
+# 1. Perimeter as designed: proxy ports answer (http redirects, https serves with the local CA),
+#    and the gateway, old frontend, PostgreSQL, MCP and Docker API ports do not.
+DOMAIN=<domain> ./scripts/ops/check_perimeter.sh <vm-ip> --ca <ca.crt>
+
+# 2. Full TCP scan: only SSH (per ADMIN_CIDR) and the proxy ports may show up.
+nmap -Pn -sS -p- <vm-ip>
 ```
 
-_Result: pending, to be attached after applying the block._
+`ca.crt` is exported as described in [`../traefik/README.md`](../traefik/README.md). `CLOSED_PORTS` overrides the list of
+ports that must stay closed.
+
+Evidence (US-PROXY-003 AC-5), `check_perimeter.sh` against the VM at `10.0.2.15`:
+
+```
+[ OK ]   puerto 80 abierto (proxy)
+[ OK ]   puerto 443 abierto (proxy)
+[ OK ]   http redirige a https (301 https://autoops.local/)
+[ OK ]   https://autoops.local:443/ responde 200 (cadena verificada con la CA local)
+[ OK ]   puerto 8000 cerrado o filtrado
+[ OK ]   puerto 3000 cerrado o filtrado
+[ OK ]   puerto 5432 cerrado o filtrado
+[ OK ]   puerto 5001 cerrado o filtrado
+[ OK ]   puerto 2375 cerrado o filtrado
+[ OK ]   puerto 2376 cerrado o filtrado
+
+OK: el perímetro de 10.0.2.15 es el diseñado.
+```
+
+Caveats: `10.0.2.15` is VirtualBox's default NAT address of the guest, so confirm the run came from a different
+machine than the VM (host-only or bridged adapter) if this evidence has to count as an outside view.
+
+`nmap -Pn -sS -p- 10.0.2.15`, as reported, from a second vantage point:
+
+```
+PORT   STATE SERVICE
+22/tcp open  ssh
+(65534 filtered ports)
+```
+
+This does **not** match the table above: it shows 80/443 as filtered, while `check_perimeter.sh` found them open.
+The two runs most likely came from different places (for example the scan through a VirtualBox NAT with only SSH
+port-forwarded, the script from inside the VM or on a host-only network). Until both are repeated from the same
+outside machine, with the proxy ports showing as `open` in nmap, the AC-5 verification (`nmap` shows SSH and the
+proxy ports) is only half confirmed: the closed side (nothing but SSH leaks) is, the open side is not.

@@ -7,7 +7,6 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 require_root
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SERVICE_USER="${SERVICE_USER:-autoops}"
 APP_DIR="${APP_DIR:-/opt/autoops}"
 SERVICE=/etc/systemd/system/autoops-backup.service

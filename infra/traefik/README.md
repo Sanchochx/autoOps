@@ -89,6 +89,6 @@ No code or image change is needed. Certificates persist in the `acme` named volu
 `venv/bin/python scripts/ops/e2e_https.py --ca <TLS_DIR>/ca/ca.crt`: redirect, ticket over `https://` and agent
 events over `wss://`.
 
-## Out of scope here
+## Firewall
 
-UFW / `DOCKER_PUBLIC_PORTS` changes (US-PROXY-003).
+Firewall changes: UFW and `DOCKER_PUBLIC_PORTS` are derived from the proxy ports by provisioning (see [`../firewall/README.md`](../firewall/README.md)).

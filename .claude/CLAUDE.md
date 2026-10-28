@@ -33,7 +33,7 @@
 - **Containers:** Docker & Docker Compose
 - **Reverse proxy:** Traefik / Nginx with SSL termination (Let's Encrypt)
 - **Deployment OS:** Ubuntu Server (AWS EC2 / local VirtualBox VM)
-- **CI/CD:** GitHub Actions (automatic deployment over SSH)
+- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; automatic deployment over SSH)
 
 ---
 
@@ -107,7 +107,7 @@ autoops/
 ├── scripts/
 │   ├── provision/            # bootstrap.sh, verify.sh, NN_*.sh steps and checks/ (idempotent host setup)
 │   └── ops/                  # Backup/restore PostgreSQL, env validation
-├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
+├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup, ci) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
 ├── .claude/
 │   ├── CLAUDE.md             # This file (architecture and standards guide)
 │   └── context/              # SDD documentation and tracking

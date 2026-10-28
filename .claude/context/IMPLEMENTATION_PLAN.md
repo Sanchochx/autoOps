@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   25                         │
+│  ✅ Completed:                   27                         │
 │  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    6                          │
+│  ⏸️  Pending:                    4                          │
 │                                                             │
-│  Progress: [████████░░] 80% (25/31)                          │
+│  Progress: [████████░░] 87% (27/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,8 +56,8 @@
 | 10 | Network Security | NET | 2 | 2 | 0 | 0 | [██████████] 100% |
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
-| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 2 | 0 | 1 | [███████░░░] 67% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 0 | 0 | 5 | [░░░░░░░░░░] 0% |
+| 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 1 | 0 | 4 | [██░░░░░░░░] 20% |
 
 ---
 
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [██░░░░░░░░] 25% (2/8)
+**Progress:** [█████░░░░░] 50% (4/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -420,10 +420,12 @@
 - **Acceptance Criteria:** 5
 - **Decisions:** local root CA (importable once on the host machine) signs the leaf; HTTP→HTTPS redirect is mandatory in every mode; `TLS_MODE` (`selfsigned`|`acme`) has no default; the CA key never reaches the proxy.
 
-#### [ ] US-PROXY-003: Close the Perimeter *(to be written)*
+#### [x] US-PROXY-003: Close the Perimeter
+- **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-003_close_perimeter.md`
 - **Priority:** HIGH
 - **Estimate:** 3 pts
 - **Dependencies:** US-PROXY-002
+- **Acceptance Criteria:** 5
 - **Scope:** `UFW_WEB_PORTS=80,443`, `DOCKER_PUBLIC_PORTS=80,443` (retire `PORT`/`FRONTEND_PORT`), new `verify.sh` checks, `infra/` docs.
 
 ---
@@ -435,16 +437,20 @@
 
 ### User Stories
 
-#### [ ] US-CICD-001: CI Pipeline *(to be written)*
+#### [x] US-CICD-001: CI Pipeline
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-001_ci_pipeline.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
 - **Dependencies:** Phase 4 (independent of Epic 13)
+- **Acceptance Criteria:** 5
 - **Scope:** GitHub-hosted runners: pytest, frontend lint/typecheck/build, `docker compose config`, shellcheck.
 
-#### [ ] US-CICD-002: Build and Publish Images to GHCR *(to be written)*
+#### [ ] US-CICD-002: Build and Publish Images to GHCR
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-002_publish_images.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
 - **Dependencies:** US-CICD-001, US-PROXY-002
+- **Acceptance Criteria:** 5
 - **Scope:** images tagged by commit SHA; `docker-compose.yml` consumes `image: ghcr.io/...:${IMAGE_TAG}` and keeps `build:` for development; `VITE_*` passed as build-args.
 
 #### [ ] US-CICD-003: Containerized Self-Hosted Runner on the Host *(to be written)*

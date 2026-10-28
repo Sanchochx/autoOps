@@ -1,0 +1,138 @@
+name: CI
+
+# US-CICD-001. Validates code and configuration; it never builds images or deploys, and it needs no secrets.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes the running one; runs on develop/main are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api_gateway/requirements-dev.txt
+            apps/api_gateway/requirements.txt
+            services/ai-engine/requirements.txt
+            services/mcp-servers/logs_server/requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install -r apps/api_gateway/requirements-dev.txt \
+                      -r services/ai-engine/requirements.txt \
+                      -r services/mcp-servers/logs_server/requirements.txt
+      # A clean checkout has no .env (it is git-ignored) and the job defines no secrets or LLM keys. The guard
+      # on PYTHONPATH also makes any non-loopback network access fail, so isolation is enforced, not assumed.
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.github/ci/nonet
+        run: pytest tests/ -v
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      # Same-origin values the Compose build passes as build-args (public, no secrets).
+      - name: Build
+        env:
+          VITE_API_BASE_URL: /
+          VITE_WS_BASE_URL: /ws
+        run: npm run build
+
+  # `docker compose config` resolves every ${VAR:?...} guard, so a renamed or missing variable fails here.
+  # .env.example is the only environment CI ever sees; its placeholders would be rejected by validate_env.sh
+  # in production, which is intended.
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        tls_mode: [selfsigned, acme]
+        files: ["-f docker-compose.yml", "-f docker-compose.yml -f docker-compose.dev-db.yml"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cp .env.example .env
+      - name: Validate the Compose configuration
+        env:
+          TLS_MODE: ${{ matrix.tls_mode }}
+          ACME_EMAIL: ${{ matrix.tls_mode == 'acme' && 'ci@example.com' || '' }}
+          PUBLIC_SCHEME: ${{ matrix.tls_mode == 'acme' && 'https' || 'http' }}
+        run: docker compose ${{ matrix.files }} config -q
+
+  # TLS_MODE has no default on purpose: the guard must still reject a missing value.
+  compose-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sed '/^TLS_MODE=/d' .env.example > .env
+      - name: TLS_MODE unset must be rejected
+        run: |
+          if out="$(docker compose config -q 2>&1)"; then
+            echo "docker compose config accepted a configuration without TLS_MODE" >&2
+            exit 1
+          fi
+          echo "$out"
+          grep -q 'TLS_MODE' <<<"$out" || { echo "rejected, but not because of TLS_MODE" >&2; exit 1; }
+
+  # Lints every tracked shell script with the shellcheck preinstalled on the runner (see .shellcheckrc).
+  shellcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: shellcheck --version
+      - name: Lint shell scripts
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
+
+  # The only status branch protection requires: it passes when every job in `needs` succeeded.
+  # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
+  ci:
+    needs: [backend, frontend, compose, compose-guard, shellcheck]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' >/dev/null
