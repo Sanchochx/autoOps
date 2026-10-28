@@ -44,8 +44,8 @@
   - Update `infra/firewall/README.md` (the "until Phase 5" paragraph), `infra/README.md` and `infra/traefik/README.md` (no more "UFW does not open 80/443 yet" notes), and `CLAUDE.md` if it still mentions them.
   - **Verification:** `grep -rn FRONTEND_PORT` returns only historical user stories and summaries plus the deprecation warnings of the provisioning scripts (`lib/docker_ufw_rules.sh`, `provision.env.example`), which name it on purpose to flag stale `.env` files; `docker compose config` and `validate_env.sh` still pass.
 
-- [ ] **AC-4: `verify.sh` Proves the Perimeter**
-  - Extend `checks/40_ufw.sh` and `checks/45_docker_ufw.sh` (no new check unless needed): UFW allows exactly SSH + proxy ports; `DOCKER-USER` accepts exactly the proxy ports; no container other than Traefik publishes a host port (`docker ps --format '{{.Names}} {{.Ports}}'`); `PORT` and `FRONTEND_PORT` values are not listed as public.
+- [x] **AC-4: `verify.sh` Proves the Perimeter**
+  - Extend `checks/40_ufw.sh` and `checks/45_docker_ufw.sh` (no new check unless needed): UFW allows exactly SSH + proxy ports; `DOCKER-USER` accepts exactly the proxy ports; no container other than Traefik publishes a host port (`docker ps --format '{{.Names}} {{.Ports}}'`); `PORT` and `FRONTEND_PORT` values are not listed as public. The OS-baseline listener check (`checks/50_os_baseline.sh`) also allows the proxy's web ports besides SSH.
   - `verify.sh` keeps exiting `1` on any failure and the new checks fail when a port is added by hand (negative test).
   - **Verification:** `sudo ./scripts/provision/verify.sh` green on the VM; after temporarily adding `ports:` to a service (or a rule to UFW) it goes red and names the offending port.
 

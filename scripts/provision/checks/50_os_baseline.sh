@@ -3,10 +3,11 @@
 #
 #   sudo [TIMEZONE=UTC] [AUTO_REBOOT_TIME=HH:MM] [EXPECTED_TCP_PORTS="8000 3000"] ./scripts/provision/checks/50_os_baseline.sh
 #
-# EXPECTED_TCP_PORTS: extra TCP ports that may listen on non-loopback interfaces
-# (default: SSH only; after deploying Docker, add the published ports).
+# EXPECTED_TCP_PORTS: extra TCP ports that may listen on non-loopback interfaces. Always allowed besides
+# SSH: the proxy's web ports (resolve_web_ports: UFW_WEB_PORTS or PROXY_HTTP_PORT / PROXY_HTTPS_PORT).
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/ufw_rules.sh"
 
 require_root
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -15,6 +16,7 @@ AUTO_REBOOT_TIME="${AUTO_REBOOT_TIME:-}"
 EXTRA_PACKAGES="${EXTRA_PACKAGES-git htop tree}"
 DISABLE_SERVICES="${DISABLE_SERVICES-avahi-daemon cups cups-browsed rpcbind bluetooth ModemManager}"
 EXPECTED_TCP_PORTS="${EXPECTED_TCP_PORTS:-}"
+WEB_PORTS="$(resolve_web_ports)"
 SSH_PORT="$(resolve_ssh_port)"
 SYSCTL_DST=/etc/sysctl.d/99-autoops.conf
 UU_CONF=/etc/apt/apt.conf.d/52autoops-unattended-upgrades
@@ -28,9 +30,9 @@ svc_disabled() {
     done
   done
 }
-# TCP listeners outside loopback other than SSH and EXPECTED_TCP_PORTS.
+# TCP listeners outside loopback other than SSH, the web ports and EXPECTED_TCP_PORTS.
 no_extra_listeners() {
-  local listeners addr port allowed=" ${SSH_PORT} ${EXPECTED_TCP_PORTS} "
+  local listeners addr port allowed=" ${SSH_PORT} ${WEB_PORTS} ${EXPECTED_TCP_PORTS} "
   listeners="$(ss -H -ltn | awk '{print $4}')"
   while read -r addr; do
     [[ -z $addr ]] && continue
@@ -69,7 +71,7 @@ sysctl_values() {
 
 check "paquetes base instalados" pkgs_installed
 check "servicios innecesarios deshabilitados" svc_disabled
-check "solo SSH (${SSH_PORT}${EXPECTED_TCP_PORTS:+ y ${EXPECTED_TCP_PORTS}}) escucha fuera de loopback" no_extra_listeners
+check "solo SSH (${SSH_PORT}) y web (${WEB_PORTS})${EXPECTED_TCP_PORTS:+ y ${EXPECTED_TCP_PORTS}} escuchan fuera de loopback" no_extra_listeners
 check "unattended-upgrade --dry-run funciona" uu_dryrun
 check "apt-daily-upgrade.timer activo" uu_timer
 check "actualización automática periódica habilitada" uu_periodic

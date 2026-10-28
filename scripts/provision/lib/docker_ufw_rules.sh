@@ -82,3 +82,15 @@ insert_block() {
   cat "$tmp" >"$file"
   rm -f "$tmp"
 }
+
+# external_host_ports <docker ps "Ports" field>: host ports published on non-loopback addresses, one per line.
+# Field format: "0.0.0.0:80->80/tcp, [::]:80->80/tcp, 127.0.0.1:5432->5432/tcp, 8000/tcp".
+# Loopback bindings (e.g. docker-compose.dev-db.yml) and unpublished ports are not reachable from outside.
+external_host_ports() {
+  local entry
+  while IFS= read -r entry; do
+    [[ $entry == *'->'* ]] || continue
+    case $entry in 127.* | '[::1]'*) continue ;; esac
+    sed -E 's/^.*:([0-9]+)(-[0-9]+)?->.*$/\1/' <<<"$entry"
+  done < <(tr ',' '\n' <<<"$1" | sed -E 's/^[[:space:]]+//')
+}
