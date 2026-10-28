@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** Phase 4 (independent of Epic 13)
-**Status:** Pending
+**Status:** Done
 
 ---
 
@@ -55,7 +55,7 @@
   - **Findings at the start (0.9.0): 4**, all in provisioning: a literal `~/.ssh` inside a check description (SC2088, disabled with reason), an unused `REPO_ROOT` in `checks/80_backup.sh` (removed), and two variables that are consumed by the scripts sourcing the library, `FILE_CHANGED` and `AFTER_RULES` (SC2034, disabled with reason).
   - **Verification:** the five Compose combinations and the guard behave as described on a clean export; shellcheck 0.9.0 is clean; all jobs are green on a pull request, and breaking a variable name in the compose or adding an unquoted expansion to a script turns the matching job red.
 
-- [ ] **AC-5: Branch Protection, Documentation and Evidence**
+- [x] **AC-5: Branch Protection, Documentation and Evidence**
   - Document in `infra/ci/README.md`: what each job checks, how to reproduce each job locally (one command per job), how to add a job to the aggregate gate, and the branch-protection settings to apply on GitHub (require pull request, require the `ci` status, up-to-date branch, no force-push). `.claude/CLAUDE.md` and `README.md` point to it.
   - Applying the branch protection is a manual step on GitHub (settings are not in the repository); the document lists the exact rule and its result is checked with `gh api repos/<owner>/<repo>/branches/main/protection`.
   - **Verification:** evidence of one green run and one deliberately red run (links or run ids) recorded in `infra/ci/README.md`; a pull request with a red `ci` cannot be merged once the protection is on.

@@ -31,7 +31,7 @@ autoops/
 ├── scripts/
 │   ├── provision/       # Idempotent host bootstrap (bootstrap.sh), verify.sh and per-control checks
 │   └── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
-├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups)
+├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups, CI)
 ├── .claude/
 │   ├── CLAUDE.md        # Project architecture and standards
 │   └── context/         # SDD documentation (plan, user stories, summaries)
