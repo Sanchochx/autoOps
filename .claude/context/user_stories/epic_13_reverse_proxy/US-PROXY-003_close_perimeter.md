@@ -29,7 +29,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: UFW Opens Only the Proxy Ports**
+- [x] **AC-1: UFW Opens Only the Proxy Ports**
   - `40_ufw.sh` defaults `UFW_WEB_PORTS` to `PROXY_HTTP_PORT` and `PROXY_HTTPS_PORT` read from `APP_ENV_FILE` (explicit values still win and are still validated by `validate_ufw_inputs`). `provision.env.example` documents it.
   - Still idempotent: a second run reports "Sin cambios"; SSH rules and `ADMIN_CIDR` behavior are untouched.
   - **Verification:** dry-run/rule rendering with the helpers in `lib/ufw_rules.sh` for default and custom ports; on the VM, `ufw status` lists SSH plus the two proxy ports and nothing else.

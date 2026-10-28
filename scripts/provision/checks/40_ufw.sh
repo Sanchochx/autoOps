@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Verifies the controls of US-NET-001 (read-only). Same variables as 40_ufw.sh:
 #
-#   sudo [ADMIN_CIDR=<cidr>] [UFW_WEB_PORTS="80 443"] ./scripts/provision/checks/40_ufw.sh
+#   sudo [ADMIN_CIDR=<cidr>] [UFW_WEB_PORTS="80 443"] [APP_ENV_FILE=<.env>] ./scripts/provision/checks/40_ufw.sh
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/ufw_rules.sh"
 
 require_root
 ADMIN_CIDR="${ADMIN_CIDR:-}"
-UFW_WEB_PORTS="${UFW_WEB_PORTS:-}"
 validate_ufw_inputs
+UFW_WEB_PORTS="$(resolve_web_ports)"
 SSH_PORT="$(resolve_ssh_port)"
 
 ufw_active()     { [[ "$(ufw status)" == "Status: active"* ]]; }
@@ -42,7 +42,5 @@ check "SSH ${SSH_PORT}/tcp permitido con rate limit${ADMIN_CIDR:+ solo desde ${A
 check "reglas definidas = exactamente las esperadas" rules_exact
 check "logging low" logging_ok
 
-if [[ -z $UFW_WEB_PORTS ]]; then
-  log_info "UFW_WEB_PORTS vacío: no se espera ningún puerto web abierto (Fase 5)."
-fi
+log_info "Puertos web esperados: ${UFW_WEB_PORTS}."
 check_finish

@@ -7,11 +7,6 @@ AFTER_RULES=/etc/ufw/after.rules
 BLOCK_BEGIN='# BEGIN AUTOOPS DOCKER-USER'
 BLOCK_END='# END AUTOOPS DOCKER-USER'
 
-# env_value <file> <KEY>: value of KEY=value without executing or sourcing the file.
-env_value() {
-  sed -nE "s/^[[:space:]]*$2=[\"']?([^\"'#[:space:]]*).*/\1/p" "$1" 2>/dev/null | tail -n1
-}
-
 # resolve_public_ports: host ports that may receive external traffic to containers.
 # DOCKER_PUBLIC_PORTS takes precedence; if empty, PORT and FRONTEND_PORT from APP_ENV_FILE. Always
 # UFW_WEB_PORTS (80/443 from Phase 5) are added so UFW and DOCKER-USER agree.

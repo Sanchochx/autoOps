@@ -420,7 +420,7 @@
 - **Acceptance Criteria:** 5
 - **Decisions:** local root CA (importable once on the host machine) signs the leaf; HTTP→HTTPS redirect is mandatory in every mode; `TLS_MODE` (`selfsigned`|`acme`) has no default; the CA key never reaches the proxy.
 
-#### [ ] US-PROXY-003: Close the Perimeter
+#### [~] US-PROXY-003: Close the Perimeter
 - **File:** `context/user_stories/epic_13_reverse_proxy/US-PROXY-003_close_perimeter.md`
 - **Priority:** HIGH
 - **Estimate:** 3 pts

@@ -6,7 +6,9 @@
 # Variables (all optional):
 #   SSH_PORT       SSH port to allow; default: sshd's effective port (`sshd -T`)
 #   ADMIN_CIDR     restricts SSH to this IP/CIDR; empty = SSH open to any source (rate limited)
-#   UFW_WEB_PORTS  web TCP ports to open, space-separated (e.g. "80 443"); default: none
+#   UFW_WEB_PORTS  web TCP ports to open, space-separated; default: PROXY_HTTP_PORT and PROXY_HTTPS_PORT
+#                  from APP_ENV_FILE (${APP_DIR:-/opt/autoops}/.env), i.e. what Traefik publishes (80 / 443)
+#   APP_ENV_FILE   deployment .env read for the proxy ports
 #   UFW_DRY_RUN=1  shows the rules it would apply and exits without touching the firewall
 #
 # ANTI-LOCKOUT SAFETY: the SSH rule is added and verified BEFORE enabling UFW,
@@ -18,8 +20,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/ufw_rules.sh"
 
 require_root
 ADMIN_CIDR="${ADMIN_CIDR:-}"
-UFW_WEB_PORTS="${UFW_WEB_PORTS:-}"
 validate_ufw_inputs
+UFW_WEB_PORTS="$(resolve_web_ports)"
 SSH_PORT="$(resolve_ssh_port)"
 
 # --- Anti-lockout guards (before touching anything) ---------------------------------
@@ -64,7 +66,7 @@ else
   ufw limit "${SSH_PORT}/tcp" comment 'autoops: ssh' >/dev/null
 fi
 
-# --- AC-2: web ports (opt-in; none by default) ---------------------------------
+# --- AC-2: web ports (the proxy's, by default) ---------------------------------
 for port in $UFW_WEB_PORTS; do
   ufw allow "${port}/tcp" comment 'autoops: web' >/dev/null
 done

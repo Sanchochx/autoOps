@@ -7,6 +7,11 @@ log_change() { printf '[CAMBIO] %s\n' "$*"; }
 log_warn()   { printf '[AVISO]  %s\n' "$*" >&2; }
 die()        { printf '[ERROR]  %s\n' "$*" >&2; exit 1; }
 
+# env_value <file> <KEY>: value of KEY=value without executing or sourcing the file.
+env_value() {
+  sed -nE "s/^[[:space:]]*$2=[\"']?([^\"'#[:space:]]*).*/\1/p" "$1" 2>/dev/null | tail -n1
+}
+
 require_root() {
   [[ $EUID -eq 0 ]] || die "Ejecuta este script con sudo o como root."
 }
