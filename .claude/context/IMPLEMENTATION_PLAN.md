@@ -437,10 +437,12 @@
 
 ### User Stories
 
-#### [ ] US-CICD-001: CI Pipeline *(to be written)*
+#### [~] US-CICD-001: CI Pipeline
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-001_ci_pipeline.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
 - **Dependencies:** Phase 4 (independent of Epic 13)
+- **Acceptance Criteria:** 5
 - **Scope:** GitHub-hosted runners: pytest, frontend lint/typecheck/build, `docker compose config`, shellcheck.
 
 #### [ ] US-CICD-002: Build and Publish Images to GHCR *(to be written)*

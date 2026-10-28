@@ -84,5 +84,18 @@ OK: el perímetro de 10.0.2.15 es el diseñado.
 ```
 
 Caveats: `10.0.2.15` is VirtualBox's default NAT address of the guest, so confirm the run came from a different
-machine than the VM (host-only or bridged adapter) if this evidence has to count as an outside view. The full
-`nmap -p-` output was not attached; repeat it with the command above when the VM has a reachable second adapter.
+machine than the VM (host-only or bridged adapter) if this evidence has to count as an outside view.
+
+`nmap -Pn -sS -p- 10.0.2.15`, as reported, from a second vantage point:
+
+```
+PORT   STATE SERVICE
+22/tcp open  ssh
+(65534 filtered ports)
+```
+
+This does **not** match the table above: it shows 80/443 as filtered, while `check_perimeter.sh` found them open.
+The two runs most likely came from different places (for example the scan through a VirtualBox NAT with only SSH
+port-forwarded, the script from inside the VM or on a host-only network). Until both are repeated from the same
+outside machine, with the proxy ports showing as `open` in nmap, the AC-5 verification (`nmap` shows SSH and the
+proxy ports) is only half confirmed: the closed side (nothing but SSH leaks) is, the open side is not.
