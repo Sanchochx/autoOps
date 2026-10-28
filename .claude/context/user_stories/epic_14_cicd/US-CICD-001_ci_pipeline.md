@@ -32,7 +32,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Workflow Skeleton, Triggers, Permissions and Aggregate Gate**
+- [x] **AC-1: Workflow Skeleton, Triggers, Permissions and Aggregate Gate**
   - `.github/workflows/ci.yml` with the triggers and `permissions: contents: read` above, `concurrency` per ref with `cancel-in-progress` for pull requests only (a push to `main` is never cancelled), a `timeout-minutes` on every job, and `actions/checkout` pinned by SHA with `persist-credentials: false`.
   - A first placeholder job plus the aggregate job `ci` (`needs:` every job, `if: always()`) that fails when any needed job failed, was cancelled or was skipped unexpectedly.
   - **Verification:** `actionlint` (or `gh workflow` lint) is clean locally; a draft pull request shows the `ci` check; a deliberately failing placeholder turns `ci` red.
