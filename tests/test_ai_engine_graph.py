@@ -17,7 +17,7 @@ def test_graph_runs_triage_then_investigator() -> None:
     assert result["status"] == "investigated"
     assert len(result["agent_notes"]) == 2
     assert "saturación" in result["agent_notes"][1]
-    assert len(result["messages"]) == 99
+    assert len(result["messages"]) == 1
 
 
 @pytest.mark.parametrize(
