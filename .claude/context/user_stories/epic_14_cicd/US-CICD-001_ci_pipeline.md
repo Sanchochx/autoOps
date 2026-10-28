@@ -37,7 +37,7 @@
   - A first placeholder job plus the aggregate job `ci` (`needs:` every job, `if: always()`) that fails when any needed job failed, was cancelled or was skipped unexpectedly.
   - **Verification:** `actionlint` (or `gh workflow` lint) is clean locally; a draft pull request shows the `ci` check; a deliberately failing placeholder turns `ci` red.
 
-- [ ] **AC-2: Backend Tests**
+- [x] **AC-2: Backend Tests**
   - Job `backend`: Python 3.11, pip cache keyed on the three requirements files (`apps/api_gateway/requirements-dev.txt`, `services/ai-engine/requirements.txt`, `services/mcp-servers/logs_server/requirements.txt`), install, `pytest tests/ -v`. Test configuration stays in `pytest.ini`.
   - The suite must pass from a clean checkout: no `.env`, no network, no LLM key. The job enforces it: the workflow sets no secret, a clean checkout has no `.env` (git-ignored), and `.github/ci/nonet/sitecustomize.py` (on `PYTHONPATH` only in this step) makes any non-loopback socket connection raise. Anything that depended on the developer's `.env` is fixed in the test (fixture or environment override), not by adding a secret to CI.
   - **Verification:** locally, `env -i` with only `PATH` (plus the guard on `PYTHONPATH`) over a `git archive` export and a fresh virtualenv built from those requirements files runs the whole suite green; the job is green on a pull request and red when a test is broken on purpose.
