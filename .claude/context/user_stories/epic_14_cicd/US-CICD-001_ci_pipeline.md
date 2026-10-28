@@ -42,7 +42,7 @@
   - The suite must pass from a clean checkout: no `.env`, no network, no LLM key. The job enforces it: the workflow sets no secret, a clean checkout has no `.env` (git-ignored), and `.github/ci/nonet/sitecustomize.py` (on `PYTHONPATH` only in this step) makes any non-loopback socket connection raise. Anything that depended on the developer's `.env` is fixed in the test (fixture or environment override), not by adding a secret to CI.
   - **Verification:** locally, `env -i` with only `PATH` (plus the guard on `PYTHONPATH`) over a `git archive` export and a fresh virtualenv built from those requirements files runs the whole suite green; the job is green on a pull request and red when a test is broken on purpose.
 
-- [ ] **AC-3: Frontend Lint, Typecheck and Build**
+- [x] **AC-3: Frontend Lint, Typecheck and Build**
   - `apps/frontend/.nvmrc` pins Node `22` (what development uses; satisfies the `^20.19.0 || >=22.12.0` engines of Vite and oxlint). The job `frontend` reads it with `actions/setup-node` (`node-version-file`) and caches npm over `apps/frontend/package-lock.json`.
   - Steps in `apps/frontend`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`. A `typecheck` script (`tsc -b`) is added to `package.json` so the type error and the bundling error are reported as separate steps; `build` is unchanged (`tsc -b && vite build`, the one the Dockerfile runs).
   - The build uses the same-origin values the Compose build passes as build-args (`VITE_API_BASE_URL=/`, `VITE_WS_BASE_URL=/ws`; public, no secret); `dist/` is not uploaded.
