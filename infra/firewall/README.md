@@ -35,14 +35,14 @@ Docker evaluates `DOCKER-USER` first in `FORWARD` and never flushes it. The bloc
 | Variable | Description |
 |---|---|
 | `DOCKER_EXT_IFACES` | External interfaces, space-separated. Defaults to those on the default route. On VirtualBox with NAT + host-only, list both if both must be filtered |
-| `DOCKER_PUBLIC_PORTS` | Host ports reachable from outside. Defaults to `PORT` and `FRONTEND_PORT` from `APP_ENV_FILE` |
+| `DOCKER_PUBLIC_PORTS` | Extra host ports reachable from outside, on top of the proxy ports. Defaults to none; a warning is logged if it lists the gateway's `PORT` |
 | `APP_ENV_FILE` | Deployment `.env` (`/opt/autoops/.env`) |
-| `UFW_WEB_PORTS` | Added to the public ports (use the same value as in `40_ufw.sh`) |
+| `UFW_WEB_PORTS` | Always-public web ports. Defaults to `PROXY_HTTP_PORT` and `PROXY_HTTPS_PORT` from `APP_ENV_FILE` (what Traefik publishes), the same resolution as `40_ufw.sh` |
 | `DOCKER_UFW_DRY_RUN=1` | Prints the block without applying it |
 
-## Provisional decision (AC-3)
+## Public ports (US-PROXY-003)
 
-Until Phase 5 the Gateway (`PORT`) and the frontend (`FRONTEND_PORT`) are public through the allowed-ports list; the Gateway is closed off by the reverse proxy. `docker-compose.yml` is not modified.
+Traefik is the only service that publishes host ports, so the only public ports are `PROXY_HTTP_PORT` (redirects to HTTPS) and `PROXY_HTTPS_PORT`. UFW (`40_ufw.sh`) and `DOCKER-USER` (`45_docker_ufw.sh`) derive them from the same `.env` variables as `docker-compose.yml`, so they cannot drift apart. The gateway's `PORT` is internal to `edge_net`; the old frontend port no longer exists.
 
 ## Known limits
 

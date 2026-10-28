@@ -39,10 +39,10 @@
   - Warning when the resolved list includes `PORT`/`FRONTEND_PORT` from `APP_ENV_FILE`.
   - **Verification:** `DOCKER_UFW_DRY_RUN=1` prints a block that accepts only the proxy ports; applied twice on the VM, the second run reports the block up to date.
 
-- [ ] **AC-3: Retire `FRONTEND_PORT` and Legacy References**
+- [x] **AC-3: Retire `FRONTEND_PORT` and Legacy References**
   - Remove `FRONTEND_PORT` from `.env.example`, `provision.env.example`, `validate_env.sh` and docs; reword `PORT` as the gateway's internal listening port.
   - Update `infra/firewall/README.md` (the "until Phase 5" paragraph), `infra/README.md` and `infra/traefik/README.md` (no more "UFW does not open 80/443 yet" notes), and `CLAUDE.md` if it still mentions them.
-  - **Verification:** `grep -rn FRONTEND_PORT` returns only historical user stories and summaries; `docker compose config` and `validate_env.sh` still pass.
+  - **Verification:** `grep -rn FRONTEND_PORT` returns only historical user stories and summaries plus the deprecation warnings of the provisioning scripts (`lib/docker_ufw_rules.sh`, `provision.env.example`), which name it on purpose to flag stale `.env` files; `docker compose config` and `validate_env.sh` still pass.
 
 - [ ] **AC-4: `verify.sh` Proves the Perimeter**
   - Extend `checks/40_ufw.sh` and `checks/45_docker_ufw.sh` (no new check unless needed): UFW allows exactly SSH + proxy ports; `DOCKER-USER` accepts exactly the proxy ports; no container other than Traefik publishes a host port (`docker ps --format '{{.Names}} {{.Ports}}'`); `PORT` and `FRONTEND_PORT` values are not listed as public.
