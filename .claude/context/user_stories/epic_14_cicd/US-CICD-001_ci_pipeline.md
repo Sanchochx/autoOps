@@ -39,8 +39,8 @@
 
 - [ ] **AC-2: Backend Tests**
   - Job `backend`: Python 3.11, pip cache keyed on the three requirements files (`apps/api_gateway/requirements-dev.txt`, `services/ai-engine/requirements.txt`, `services/mcp-servers/logs_server/requirements.txt`), install, `pytest tests/ -v`. Test configuration stays in `pytest.ini`.
-  - The suite must pass from a clean checkout: no `.env`, no network, no LLM key. Anything that depended on the developer's `.env` is fixed in the test (fixture or environment override), not by adding a secret to CI.
-  - **Verification:** locally, `env -i` with only `PATH` plus a fresh virtualenv built from those requirements files runs the whole suite green; the job is green on a pull request and red when a test is broken on purpose.
+  - The suite must pass from a clean checkout: no `.env`, no network, no LLM key. The job enforces it: the workflow sets no secret, a clean checkout has no `.env` (git-ignored), and `.github/ci/nonet/sitecustomize.py` (on `PYTHONPATH` only in this step) makes any non-loopback socket connection raise. Anything that depended on the developer's `.env` is fixed in the test (fixture or environment override), not by adding a secret to CI.
+  - **Verification:** locally, `env -i` with only `PATH` (plus the guard on `PYTHONPATH`) over a `git archive` export and a fresh virtualenv built from those requirements files runs the whole suite green; the job is green on a pull request and red when a test is broken on purpose.
 
 - [ ] **AC-3: Frontend Lint, Typecheck and Build**
   - `.nvmrc` with the Node major used by the project (matches `@types/node`), and the job `frontend` uses it with `actions/setup-node` and the npm cache over `apps/frontend/package-lock.json`.
