@@ -1,8 +1,10 @@
-# Continuous integration (US-CICD-001)
+# Continuous integration and images (US-CICD-001, US-CICD-002)
 
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to those branches,
-on GitHub-hosted runners. It **validates**; it never builds images, publishes anything or deploys (that is
-US-CICD-002 and later), and it needs **no secrets**: `permissions: contents: read`, no `pull_request_target`.
+on GitHub-hosted runners. It **validates and builds**: pull requests build the images without pushing; only a push to
+`main` with a green `ci` publishes them to GHCR (job `publish`, see [Images](#images-us-cicd-002)). It never deploys
+(US-CICD-004/005) and needs **no secrets of its own**: the default is `permissions: contents: read`, no
+`pull_request_target`, and `publish` authenticates with the built-in `GITHUB_TOKEN`.
 
 ## Jobs
 
@@ -13,6 +15,8 @@ US-CICD-002 and later), and it needs **no secrets**: `permissions: contents: rea
 | `compose` (4 cells) | `docker compose config -q` for `TLS_MODE` ∈ {`selfsigned`, `acme`} × {base, base + `docker-compose.dev-db.yml`} using `.env.example` | `cp .env.example .env && docker compose config -q` (for `acme` also set `ACME_EMAIL` and `PUBLIC_SCHEME=https`) |
 | `compose-guard` | Without `TLS_MODE` the Compose must be rejected, and the error must name `TLS_MODE` | `sed '/^TLS_MODE=/d' .env.example > .env && docker compose config -q` (must fail) |
 | `shellcheck` | Every tracked `*.sh`, severity `warning`, config in `.shellcheckrc` | `git ls-files -z '*.sh' \| xargs -0 shellcheck --severity=warning` |
+| `images` | The four images build with `docker buildx bake` from `docker-compose.yml` (no push), and the `NODE_VERSION` of `apps/frontend/Dockerfile` equals `.nvmrc` | `cp .env.example .env && TLS_MODE=selfsigned docker buildx bake api-gateway frontend mcp-logs traefik` |
+| `publish` | Only on `push` to `main`, after `ci` is green: pushes the four images tagged with the commit SHA (the only job with `packages: write`) | — |
 | `ci` | Aggregate gate: passes only if every job above succeeded (also when one failed, was cancelled or skipped) | — |
 
 ## Design rules
@@ -24,8 +28,8 @@ US-CICD-002 and later), and it needs **no secrets**: `permissions: contents: rea
   adding jobs then never breaks the protection rule.
 - **Concurrency:** a new push to a pull request cancels its running workflow; runs on `develop` and `main` are never
   cancelled.
-- **Versions match what ships:** Python 3.11 (the Dockerfiles), Node from `.nvmrc`. Known drift:
-  `apps/frontend/Dockerfile` still builds with `node:20-alpine` (planned for US-CICD-002).
+- **Versions match what ships:** Python 3.11 (the Dockerfiles), Node from `.nvmrc`; the `images` job fails if the
+  frontend Dockerfile drifts from `.nvmrc`.
 - The `.env` that the `compose` jobs create comes from `.env.example`; its placeholders would be rejected by
   `scripts/ops/validate_env.sh` in production, which is intended: CI never runs a production configuration.
 
@@ -61,9 +65,56 @@ invented here).
 
 ## Images (US-CICD-002)
 
-_Work in progress: AC-4 (end-to-end pull on another machine) and AC-5 (usage guide) complete this section._
+Four images are built from `docker-compose.yml` and published to GitHub Container Registry on every push to `main`
+whose CI is green:
 
-### Evidence: publication (AC-1, AC-3)
+| Image | Built from |
+|---|---|
+| `ghcr.io/<owner>/autoops/api-gateway` | `apps/api_gateway/Dockerfile` (also the `migrate` service) |
+| `ghcr.io/<owner>/autoops/frontend` | `apps/frontend/Dockerfile` |
+| `ghcr.io/<owner>/autoops/mcp-logs` | `services/mcp-servers/logs_server/Dockerfile` |
+| `ghcr.io/<owner>/autoops/traefik` | `infra/traefik/Dockerfile` |
+
+`<owner>` is the repository owner in lowercase (GHCR requires it). `postgres` is the upstream image and is not published.
+
+- **Tags are the full commit SHA, only.** There is no `latest` and no moving tag: a deploy names the exact commit it
+  runs and a rollback is another SHA. Each image carries `org.opencontainers.image.revision` (the SHA), `.source` and
+  `.created`.
+- **One Compose file for both worlds.** Every built service has `build:` and
+  `image: ${IMAGE_REPOSITORY:-autoops}/<service>:${IMAGE_TAG:-dev}`. Development (`docker compose up -d --build`)
+  builds and tags `autoops/<service>:dev`; a host sets the two variables and pulls.
+- **Production never runs `dev`:** `scripts/ops/validate_env.sh` rejects an empty or `dev` `IMAGE_TAG` when
+  `ENVIRONMENT=production`.
+
+### Run a published commit
+
+```bash
+export IMAGE_REPOSITORY=ghcr.io/<owner>/autoops     # owner in lowercase
+export IMAGE_TAG=<full 40-character commit SHA>
+docker compose pull                                  # nothing is built
+docker compose up -d --no-build
+docker compose --profile tools run --rm migrate      # a new database needs its migrations; `up` never runs them
+```
+
+Put the two variables in `.env` instead when the stack is managed by systemd (`autoops.service` reads it). With
+`sudo`, pass them with `sudo env IMAGE_REPOSITORY=… IMAGE_TAG=… docker compose …`.
+
+**Which commit is running?** `docker compose images` lists repository and tag per service; the tag is the SHA. For one
+image: `docker image inspect <image> --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'`.
+
+### Package visibility and pull credentials
+
+The packages inherit the visibility of the repository: while it is public, anyone can `docker pull` them without
+credentials. If the repository becomes private the packages are private too, and the host needs
+`docker login ghcr.io` with a token that only has `read:packages`. How that credential is provisioned and stored is
+decided in US-CICD-003/004; do not reuse a personal token with wider scopes.
+
+### Updating the pinned actions
+
+`publish` and `images` add `docker/setup-buildx-action` and `docker/login-action`. Update them like the others (see
+Design rules): resolve the new tag to its commit SHA and change SHA and version comment together.
+
+### Evidence (AC-1, AC-3, AC-4)
 
 | Case | Evidence |
 |---|---|
@@ -81,12 +132,41 @@ Merge commit `6117b7aac20113f25ad4e8ba8dd8f586e2f787ce`, published as that exact
 | https://github.com/users/Sanchochx/packages/container/package/autoops%2Fmcp-logs | `sha256:71f114dbde03c8091e688afbcbd674c7018278a8f84609249b35fab9afb8e1d6` |
 | https://github.com/users/Sanchochx/packages/container/package/autoops%2Ftraefik | `sha256:bdeff3714e99f1ccd4264f0a7777f011ac2bf43505d2c158869c2a9c5f897c38` |
 
-The digests are the ones in the `publish` log; the registry reports the same ones for the tagged versions. All four
+### Evidence: run from the registry (AC-4)
+
+On the maintainer's machine, with the stack down, the four images were pulled by tag (`docker compose pull`, nothing
+built) and started with `docker compose up -d --no-build`; `migrate` then ran from the same GHCR image on an empty
+database. Reported by the maintainer; the `docker compose images` output was supplied verbatim:
+
+| Check | Result |
+|---|---|
+| `docker compose ps` | every service `healthy` |
+| `org.opencontainers.image.revision` of each image | equals `6117b7aac20113f25ad4e8ba8dd8f586e2f787ce` |
+| `RepoDigests` of each pulled image vs. the table above | identical |
+| `scripts/ops/e2e_https.py` | exit 0: `POST /api/v1/tickets over https -> 201` and `ai_event over wss://` |
+| `docker compose images` | repository `ghcr.io/sanchochx/autoops/<service>` and tag = the SHA for the four built services (output below) |
+
+```
+CONTAINER               REPOSITORY                              TAG                                       IMAGE ID       SIZE
+autoops-api-gateway-1   ghcr.io/sanchochx/autoops/api-gateway   6117b7aac20113f25ad4e8ba8dd8f586e2f787ce  0b75ba6b4721   494MB
+autoops-frontend-1      ghcr.io/sanchochx/autoops/frontend      6117b7aac20113f25ad4e8ba8dd8f586e2f787ce  66387f878305   94MB
+autoops-mcp-logs-1      ghcr.io/sanchochx/autoops/mcp-logs      6117b7aac20113f25ad4e8ba8dd8f586e2f787ce  71f114dbde03   282MB
+autoops-postgres-1      postgres                                15-alpine                                 54e0dd8e8cdd   416MB
+autoops-traefik-1       ghcr.io/sanchochx/autoops/traefik       6117b7aac20113f25ad4e8ba8dd8f586e2f787ce  bdeff3714e99   252MB
+```
+
+(The image IDs equal the first 12 characters of the index digests listed above; platform `linux/amd64`.)
+
+The first e2e attempt returned HTTP 500 because the local `.env` still had the default `DB_PASSWORD` while the existing
+Postgres volume had been initialised with another one; recreating the volume (`down -v`) with real credentials fixed
+it. It was a local configuration problem, not an image problem.
+
+The digests above are the ones in the `publish` log; the registry reports the same ones for the tagged versions. All four
 packages are `public` (they inherit the visibility of the repository) and carry, in the image config read from the
 registry, `org.opencontainers.image.revision` = the commit above, `.source` = https://github.com/Sanchochx/autoOps and
 `.created` = `2026-10-29T00:45:45Z` (`traefik` also keeps the upstream labels).
 
 ## Out of scope
 
-Image build and publication (US-CICD-002), self-hosted runner (US-CICD-003), deployment (US-CICD-004/005), coverage
-thresholds, dependency and image vulnerability scanning.
+Self-hosted runner (US-CICD-003), deployment (US-CICD-004/005), image signing, SBOM, coverage thresholds, dependency
+and image vulnerability scanning, retention of old image versions, multi-arch images.

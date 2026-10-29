@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-CICD-001, US-PROXY-002
-**Status:** In progress
+**Status:** Done
 
 ---
 
@@ -48,12 +48,12 @@
   - The images carry the OCI labels `org.opencontainers.image.source`, `.revision` (the commit SHA) and `.created`, so any image can be traced to its commit.
   - **Verification:** a merge to `main` publishes four packages tagged with the merge commit's SHA; a pull request publishes nothing; a deliberately red CI on `main` (or the job guard) publishes nothing.
 
-- [ ] **AC-4: Verify a Published Image End to End**
+- [x] **AC-4: Verify a Published Image End to End**
   - From another machine (or the VM): `docker login ghcr.io` if the packages are private, then `IMAGE_REPOSITORY=… IMAGE_TAG=<sha> docker compose pull` pulls the four images without building anything, and the stack starts `healthy` from them (`docker compose up -d --no-build`).
   - `docker image inspect` shows `org.opencontainers.image.revision` equal to the commit; the digest of a pulled image equals the one shown in the registry.
   - **Verification:** `docker compose images` lists the GHCR repository and the SHA tag for every service; `scripts/ops/e2e_https.py` (ticket over HTTPS, events over WSS) passes against that stack.
 
-- [ ] **AC-5: Documentation, Evidence and Closing**
+- [x] **AC-5: Documentation, Evidence and Closing**
   - `infra/ci/README.md` gains an "Images" section: the four names, the SHA-only tag policy, how to run a given commit (`IMAGE_REPOSITORY`/`IMAGE_TAG`), how to find the SHA of a deployed stack, the package-visibility and pull-credential note, and how to update the pinned actions. `.claude/CLAUDE.md` and `README.md` mention the variables.
   - Evidence recorded in `infra/ci/README.md`: URL of the publishing run, the four package URLs and the output of `docker compose images` from AC-4.
   - **Verification:** a reader can run any published commit following only the document; plan updated (Epic 14 at 40%, Phase 5 at 5/8).
