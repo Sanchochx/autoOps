@@ -38,7 +38,7 @@
   - New job `images` in `ci.yml`: on pull requests it builds the four images with `docker buildx bake` from `docker-compose.yml`, no push, GitHub Actions cache enabled; it is added to `needs:` of the `ci` gate.
   - **Verification:** locally, `docker compose build` still works and the frontend image reports Node 22 in its build stage; on a pull request the job is green, and breaking a `COPY` path in a Dockerfile turns `images` and `ci` red.
 
-- [ ] **AC-2: Compose Consumes Images by Tag, Development Keeps Building**
+- [x] **AC-2: Compose Consumes Images by Tag, Development Keeps Building**
   - `docker-compose.yml`: every service that has `build:` also gets `image: ${IMAGE_REPOSITORY:-autoops}/<service>:${IMAGE_TAG:-dev}` (`migrate` uses the `api-gateway` image). `.env.example` documents `IMAGE_REPOSITORY` and `IMAGE_TAG`; `validate_env.sh` enforces the production rule above.
   - The `compose` and `compose-guard` jobs of CICD-001 keep passing unchanged, plus one extra cell with `IMAGE_REPOSITORY=ghcr.io/example/autoops` and a SHA-like `IMAGE_TAG`.
   - **Verification:** `docker compose config` shows the expected image names for the default and for explicit values; `docker compose up -d --build` still starts the stack from a clean checkout; `validate_env.sh` fails with `ENVIRONMENT=production` and `IMAGE_TAG` unset or `dev`, and passes with a SHA.
