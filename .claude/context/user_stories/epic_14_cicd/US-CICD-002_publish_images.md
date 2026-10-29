@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-CICD-001, US-PROXY-002
-**Status:** Pending
+**Status:** In progress
 
 ---
 

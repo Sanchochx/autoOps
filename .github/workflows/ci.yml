@@ -1,6 +1,6 @@
 name: CI
 
-# US-CICD-001. Validates code and configuration; it never builds images or deploys, and it needs no secrets.
+# US-CICD-001/002. Validates code and configuration and builds the images (pull requests: no push); it needs no secrets.
 on:
   pull_request:
     branches: [develop, main]
@@ -122,10 +122,36 @@ jobs:
       - name: Lint shell scripts
         run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
 
+  # Builds the four images exactly as the Compose declares them (contexts, Dockerfiles, build-args), without
+  # pushing, so a broken Dockerfile is caught before the merge. Fork pull requests need no token for this.
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Frontend image uses the Node version CI tests with
+        run: |
+          nvmrc="$(tr -d '[:space:]' < apps/frontend/.nvmrc)"
+          dockerfile="$(sed -n 's/^ARG NODE_VERSION=//p' apps/frontend/Dockerfile)"
+          echo ".nvmrc=${nvmrc} Dockerfile=${dockerfile}"
+          [ -n "$dockerfile" ] && [ "${nvmrc%%.*}" = "${dockerfile%%.*}" ] \
+            || { echo "apps/frontend/Dockerfile NODE_VERSION differs from .nvmrc" >&2; exit 1; }
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - run: cp .env.example .env
+      - name: Build the images
+        env:
+          TLS_MODE: selfsigned
+        run: |
+          docker buildx bake -f docker-compose.yml \
+            --set '*.cache-from=type=gha' --set '*.cache-to=type=gha,mode=max' \
+            api-gateway frontend mcp-logs traefik
+
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend, frontend, compose, compose-guard, shellcheck]
+    needs: [backend, frontend, compose, compose-guard, shellcheck, images]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

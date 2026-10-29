@@ -7,7 +7,9 @@
 #     apps/frontend
 
 # ── Stage 1: build ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Keep in step with apps/frontend/.nvmrc (the Node CI tests with); the `images` job fails on drift.
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-alpine AS builder
 
 WORKDIR /app
 
