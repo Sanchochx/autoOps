@@ -33,7 +33,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Align the Dockerfiles with CI and Build Every Image on Pull Requests**
+- [x] **AC-1: Align the Dockerfiles with CI and Build Every Image on Pull Requests**
   - `apps/frontend/Dockerfile` builds with Node 22: `ARG NODE_VERSION=22` and `FROM node:${NODE_VERSION}-alpine`. A CI step fails when that default differs from `apps/frontend/.nvmrc`, so the image and the pipeline cannot drift again. The Python images are already 3.11, the version CI tests.
   - New job `images` in `ci.yml`: on pull requests it builds the four images with `docker buildx bake` from `docker-compose.yml`, no push, GitHub Actions cache enabled; it is added to `needs:` of the `ci` gate.
   - **Verification:** locally, `docker compose build` still works and the frontend image reports Node 22 in its build stage; on a pull request the job is green, and breaking a `COPY` path in a Dockerfile turns `images` and `ci` red.
