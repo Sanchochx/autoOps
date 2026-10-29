@@ -210,8 +210,10 @@ jobs:
       - name: Build the runner image
         env:
           RUNNER_REPO_URL: https://github.com/example/example
+        # bake resolves `context: .` against the working directory, not the Compose file: run it from its folder.
+        working-directory: infra/runner
         run: |
-          docker buildx bake -f infra/runner/docker-compose.yml \
+          docker buildx bake -f docker-compose.yml \
             --set '*.cache-from=type=gha,scope=runner' --set '*.cache-to=type=gha,mode=max,scope=runner' runner
 
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
