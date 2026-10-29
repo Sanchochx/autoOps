@@ -33,7 +33,7 @@ FROM nginx:alpine AS runtime
 # --chmod: COPY keeps the source mode, and the unprivileged `nginx` user must be able to read it
 # whatever the umask of the machine that builds the image.
 COPY --chmod=0644 nginx.conf /etc/nginx/nginx.conf
-COPY --from=builder /app/dist-missing /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Writes only to /tmp (pid and temp files, see nginx.conf); the content is read-only.
 USER nginx
