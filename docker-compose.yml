@@ -2,6 +2,7 @@
 # required variables fail with a clear message if they are not defined.
 #
 #   docker compose up -d --build        # brings up the full stack
+#   IMAGE_REPOSITORY=ghcr.io/<owner>/autoops IMAGE_TAG=<sha> docker compose pull   # run a published commit (no build)
 #   docker compose --profile tools run --rm migrate   # Alembic migrations (explicit step)
 #
 # Networks (all bridge):
@@ -37,6 +38,7 @@ services:
     networks: [backend_net]
 
   mcp-logs:
+    image: ${IMAGE_REPOSITORY:-autoops}/mcp-logs:${IMAGE_TAG:-dev}
     build:
       context: ./services/mcp-servers/logs_server
     restart: unless-stopped
@@ -59,6 +61,7 @@ services:
     networks: [mcp_net]
 
   api-gateway:
+    image: ${IMAGE_REPOSITORY:-autoops}/api-gateway:${IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: apps/api_gateway/Dockerfile
@@ -104,6 +107,7 @@ services:
     networks: [edge_net, backend_net, mcp_net]
 
   frontend:
+    image: ${IMAGE_REPOSITORY:-autoops}/frontend:${IMAGE_TAG:-dev}
     build:
       context: ./apps/frontend
       # Vite embeds the VITE_* variables at build time. Behind the proxy the dashboard and the
@@ -131,6 +135,7 @@ services:
   # the image (infra/traefik/Dockerfile): static file + file provider; the Docker socket is NOT mounted.
   # Runs unprivileged; NET_BIND_SERVICE is kept so binding 80/443 never depends on sysctl defaults.
   traefik:
+    image: ${IMAGE_REPOSITORY:-autoops}/traefik:${IMAGE_TAG:-dev}
     build:
       context: ./infra/traefik
       args:
@@ -173,6 +178,7 @@ services:
   # Alembic migrations: explicit step, not run by `up`.
   #   docker compose --profile tools run --rm migrate
   migrate:
+    image: ${IMAGE_REPOSITORY:-autoops}/api-gateway:${IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: apps/api_gateway/Dockerfile

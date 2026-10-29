@@ -80,6 +80,14 @@ jobs:
       matrix:
         tls_mode: [selfsigned, acme]
         files: ["-f docker-compose.yml", "-f docker-compose.yml -f docker-compose.dev-db.yml"]
+        image: [default]
+        include:
+          # US-CICD-002: the host consumes published images by repository and SHA tag.
+          - tls_mode: selfsigned
+            files: "-f docker-compose.yml"
+            image: pinned
+            image_repository: ghcr.io/example/autoops
+            image_tag: 0123456789abcdef0123456789abcdef01234567
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,7 +98,21 @@ jobs:
           TLS_MODE: ${{ matrix.tls_mode }}
           ACME_EMAIL: ${{ matrix.tls_mode == 'acme' && 'ci@example.com' || '' }}
           PUBLIC_SCHEME: ${{ matrix.tls_mode == 'acme' && 'https' || 'http' }}
+          IMAGE_REPOSITORY: ${{ matrix.image_repository }}
+          IMAGE_TAG: ${{ matrix.image_tag }}
         run: docker compose ${{ matrix.files }} config -q
+      - name: Images are named by repository and tag
+        if: matrix.image == 'pinned'
+        env:
+          TLS_MODE: ${{ matrix.tls_mode }}
+          IMAGE_REPOSITORY: ${{ matrix.image_repository }}
+          IMAGE_TAG: ${{ matrix.image_tag }}
+        run: |
+          images="$(docker compose ${{ matrix.files }} --profile tools config --images)"
+          echo "$images"
+          for svc in api-gateway frontend mcp-logs traefik; do
+            grep -qx "${IMAGE_REPOSITORY}/${svc}:${IMAGE_TAG}" <<<"$images" || { echo "missing image for ${svc}" >&2; exit 1; }
+          done
 
   # TLS_MODE has no default on purpose: the guard must still reject a missing value.
   compose-guard:
