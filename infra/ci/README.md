@@ -59,6 +59,33 @@ invented here).
 | Merge blocked by a red `ci` | _pending: add the pull request URL_ |
 | Branch protection on `main` (`gh api …/protection`) | Reported by the maintainer: required status checks = `["ci"]`. `strict` and `allow_force_pushes` values were not reported |
 
+## Images (US-CICD-002)
+
+_Work in progress: AC-4 (end-to-end pull on another machine) and AC-5 (usage guide) complete this section._
+
+### Evidence: publication (AC-1, AC-3)
+
+| Case | Evidence |
+|---|---|
+| `images` red on a broken `COPY` (pull request, `images` and `ci` red) | https://github.com/Sanchochx/autoOps/actions/runs/40793389105 |
+| `images` green again after the revert | https://github.com/Sanchochx/autoOps/actions/runs/40793775201 |
+| Publication on `main` (all jobs green, `publish` pushed four images) | https://github.com/Sanchochx/autoOps/actions/runs/40796026748 |
+| `publish` skipped on a pull request | https://github.com/Sanchochx/autoOps/pull/2 |
+
+Merge commit `6117b7aac20113f25ad4e8ba8dd8f586e2f787ce`, published as that exact tag (index digests):
+
+| Package | Digest |
+|---|---|
+| https://github.com/users/Sanchochx/packages/container/package/autoops%2Fapi-gateway | `sha256:0b75ba6b4721805ac1e33b2713d91ab259f8bb8bf38307452fd2348f3db620cf` |
+| https://github.com/users/Sanchochx/packages/container/package/autoops%2Ffrontend | `sha256:66387f878305848848e6e9c51eac458d1a3f576501574a74c922d3874599dd5d` |
+| https://github.com/users/Sanchochx/packages/container/package/autoops%2Fmcp-logs | `sha256:71f114dbde03c8091e688afbcbd674c7018278a8f84609249b35fab9afb8e1d6` |
+| https://github.com/users/Sanchochx/packages/container/package/autoops%2Ftraefik | `sha256:bdeff3714e99f1ccd4264f0a7777f011ac2bf43505d2c158869c2a9c5f897c38` |
+
+The digests are the ones in the `publish` log; the registry reports the same ones for the tagged versions. All four
+packages are `public` (they inherit the visibility of the repository) and carry, in the image config read from the
+registry, `org.opencontainers.image.revision` = the commit above, `.source` = https://github.com/Sanchochx/autoOps and
+`.created` = `2026-10-29T00:45:45Z` (`traefik` also keeps the upstream labels).
+
 ## Out of scope
 
 Image build and publication (US-CICD-002), self-hosted runner (US-CICD-003), deployment (US-CICD-004/005), coverage

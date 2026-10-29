@@ -43,7 +43,7 @@
   - The `compose` and `compose-guard` jobs of CICD-001 keep passing unchanged, plus one extra cell with `IMAGE_REPOSITORY=ghcr.io/example/autoops` and a SHA-like `IMAGE_TAG`.
   - **Verification:** `docker compose config` shows the expected image names for the default and for explicit values; `docker compose up -d --build` still starts the stack from a clean checkout; `validate_env.sh` fails with `ENVIRONMENT=production` and `IMAGE_TAG` unset or `dev`, and passes with a SHA.
 
-- [ ] **AC-3: Publish to GHCR from `main` After a Green CI**
+- [x] **AC-3: Publish to GHCR from `main` After a Green CI**
   - Job `publish` in `ci.yml`: `needs: ci`, `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`, `permissions: packages: write` (plus `contents: read`), `docker/login-action` to `ghcr.io` with `GITHUB_TOKEN`, then `docker buildx bake --push` with `IMAGE_REPOSITORY=ghcr.io/${{ github.repository_owner }}/autoops` (lowercased) and `IMAGE_TAG=${{ github.sha }}`. Third-party actions pinned by SHA as in CICD-001.
   - The images carry the OCI labels `org.opencontainers.image.source`, `.revision` (the commit SHA) and `.created`, so any image can be traced to its commit.
   - **Verification:** a merge to `main` publishes four packages tagged with the merge commit's SHA; a pull request publishes nothing; a deliberately red CI on `main` (or the job guard) publishes nothing.
