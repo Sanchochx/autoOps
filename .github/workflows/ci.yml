@@ -133,6 +133,42 @@ jobs:
           echo "$out"
           grep -q 'TLS_MODE' <<<"$out" || { echo "rejected, but not because of TLS_MODE" >&2; exit 1; }
 
+  # US-CICD-003: the runner executes workflow code on the host, so its Compose is checked on the RESOLVED model (not
+  # on text, which comments and anchors can fool): no Docker socket anywhere, no published ports, not privileged, no
+  # host network, no capabilities, read-only root, no host bind mounts, a single dedicated network.
+  runner-compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      RUNNER_REPO_URL: https://github.com/example/example
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker compose -f infra/runner/docker-compose.yml config -q
+      - name: RUNNER_REPO_URL unset must be rejected
+        run: |
+          if out="$(env -u RUNNER_REPO_URL docker compose -f infra/runner/docker-compose.yml config -q 2>&1)"; then
+            echo "the runner Compose accepted a configuration without RUNNER_REPO_URL" >&2
+            exit 1
+          fi
+          grep -q 'RUNNER_REPO_URL' <<<"$out"
+      - name: The runner stays locked down
+        run: scripts/ci/check_runner_compose.sh infra/runner/docker-compose.yml
+
+  # US-CICD-003 AC-4: the repository is public and the self-hosted runner executes whatever a workflow says, so a
+  # workflow that targets it may only be triggered by workflow_dispatch / push to main and must declare the
+  # `production` environment (limited to main). Parsed as YAML, not grepped, so comments cannot fool it.
+  runner-workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -c 'import yaml' 2>/dev/null || pip install --user pyyaml==6.0.3
+      - run: scripts/ci/check_runner_workflows.sh
+
   # Lints every tracked shell script with the shellcheck preinstalled on the runner (see .shellcheckrc).
   shellcheck:
     runs-on: ubuntu-24.04
@@ -170,11 +206,20 @@ jobs:
           docker buildx bake -f docker-compose.yml \
             --set '*.cache-from=type=gha' --set '*.cache-to=type=gha,mode=max' \
             api-gateway frontend mcp-logs traefik
+      # The self-hosted runner image (US-CICD-003); its own scope keeps its layers apart in the Actions cache.
+      - name: Build the runner image
+        env:
+          RUNNER_REPO_URL: https://github.com/example/example
+        # bake resolves `context: .` against the working directory, not the Compose file: run it from its folder.
+        working-directory: infra/runner
+        run: |
+          docker buildx bake -f docker-compose.yml \
+            --set '*.cache-from=type=gha,scope=runner' --set '*.cache-to=type=gha,mode=max,scope=runner' runner
 
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend, frontend, compose, compose-guard, shellcheck, images]
+    needs: [backend, frontend, compose, compose-guard, shellcheck, images, runner-compose, runner-workflows]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

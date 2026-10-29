@@ -453,11 +453,12 @@
 - **Acceptance Criteria:** 5
 - **Scope:** images tagged by commit SHA; `docker-compose.yml` consumes `image: ghcr.io/...:${IMAGE_TAG}` and keeps `build:` for development; `VITE_*` passed as build-args.
 
-#### [ ] US-CICD-003: Containerized Self-Hosted Runner on the Host *(to be written)*
+#### [~] US-CICD-003: Containerized Self-Hosted Runner on the Host
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-003_self_hosted_runner.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts
 - **Dependencies:** US-CICD-002, US-SYS-003
-- **Scope:** runner container provisioned by a numbered script (registration token from the environment, never committed), isolated network, no `docker.sock`, restricted labels and repository, outbound-only connection to GitHub; check in `verify.sh`.
+- **Acceptance Criteria:** 5
 
 #### [ ] US-CICD-004: Pull-Based Deployment on the Host *(to be written)*
 - **Priority:** CRITICAL

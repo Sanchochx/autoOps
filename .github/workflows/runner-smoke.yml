@@ -1,0 +1,46 @@
+name: Runner smoke
+
+# US-CICD-003 AC-4. Proves, from INSIDE the self-hosted runner, that it can reach GitHub and nothing else: no Docker
+# socket, no Docker client, no way to resolve the application's services, a read-only root. Manual only, and the job
+# declares the `production` environment (limited to `main`), so a dispatch from any other branch is rejected before it
+# reaches the host. No third-party actions: everything below is plain shell. scripts/ci/check_runner_workflows.sh
+# keeps every workflow that uses the runner within these rules.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  isolation:
+    runs-on: autoops-prod
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: Where am I
+        run: |
+          echo "host=$(hostname) runner=${RUNNER_NAME} os=${RUNNER_OS}/${RUNNER_ARCH} uid=$(id -u)"
+      - name: The runner can reach GitHub and nothing else
+        run: |
+          failed=0
+          check() { # check <description> <command...>: passes when the command succeeds
+            local description=$1
+            shift
+            if "$@" >/dev/null 2>&1; then echo "ok   ${description}"; else echo "FAIL ${description}"; failed=1; fi
+          }
+          not() { ! "$@"; }
+          docker_installed() { command -v docker; }
+          resolves() { getent hosts "$1"; }
+          # Not `touch /x`: as a non-root user that fails on a writable root too. Ask for the mount option instead.
+          root_read_only() { awk '$5 == "/" { print $6 }' /proc/self/mountinfo | grep -Eq '(^|,)ro(,|$)'; }
+
+          check "does not run as root" test "$(id -u)" -ne 0
+          check "no Docker socket (/var/run/docker.sock)" not test -e /var/run/docker.sock
+          check "no Docker client installed" not docker_installed
+          check "root filesystem is mounted read-only" root_read_only
+          check "job temp directory is writable" touch "${RUNNER_TEMP}/runner-smoke-probe"
+          for name in postgres api-gateway mcp-logs; do
+            check "the name '${name}' does not resolve" not resolves "${name}"
+          done
+          check "HTTPS to api.github.com works" curl -fsS --max-time 10 -o /dev/null https://api.github.com/zen
+
+          exit "${failed}"
