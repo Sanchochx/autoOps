@@ -1,0 +1,62 @@
+# Self-hosted GitHub Actions runner (US-CICD-003). A Compose project of its own, NOT part of the application
+# docker-compose.yml: `autoops.service` runs `up --remove-orphans` and `down`, which would remove or stop the runner,
+# and a runner failure must never affect the stack. Managed by autoops-runner.service (scripts/provision/75_runner.sh).
+#
+#   docker compose -f infra/runner/docker-compose.yml --env-file .env up -d
+#
+# The runner executes workflow code, so it gets the least it can work with: no Docker socket, no Docker client, no host
+# mounts, no published ports, no capabilities, a read-only root filesystem and a network with nothing else on it.
+# The `runner-compose` job of ci.yml fails if any of that is removed.
+name: autoops-runner
+
+services:
+  runner:
+    image: autoops/runner:local
+    # RUNNER_VERSION / RUNNER_SHA256 are optional overrides; without them the Dockerfile pin applies.
+    build:
+      context: .
+      args:
+        - RUNNER_VERSION
+        - RUNNER_SHA256
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    pids_limit: ${RUNNER_PIDS_LIMIT:-512}
+    mem_limit: ${RUNNER_MEMORY_LIMIT:-2g}
+    cpus: ${RUNNER_CPUS:-2}
+    environment:
+      RUNNER_REPO_URL: ${RUNNER_REPO_URL:?define RUNNER_REPO_URL in .env}
+      RUNNER_LABELS: ${RUNNER_LABELS:-autoops-prod}
+      RUNNER_NAME: ${RUNNER_NAME:-autoops-runner}
+      # Inside the container the token is always at the secret path (see `secrets` below).
+      RUNNER_REGISTRATION_TOKEN_FILE: /run/secrets/runner_token
+      # The root filesystem is read-only: tools that want a home write to the tmpfs.
+      HOME: /tmp
+      DOTNET_CLI_HOME: /tmp
+      DOTNET_NOLOGO: "1"
+    secrets: [runner_token]
+    volumes:
+      # Working copy of the runner and its credentials (.runner, .credentials*): survives restarts.
+      - runner_home:/home/runner/runner
+    tmpfs:
+      # Every job starts from an empty workspace, and nothing a job writes survives a restart.
+      - /tmp:mode=1777,size=512m
+      - /home/runner/runner/_work:uid=10001,gid=10001,mode=0700,size=${RUNNER_WORKSPACE_SIZE:-2g}
+      - /home/runner/runner/_diag:uid=10001,gid=10001,mode=0700,size=64m
+    networks: [runner_net]
+
+# Only needed on first start (registration); afterwards the runner uses its own credentials from the volume.
+# Unset = /dev/null, which the entrypoint reports as an empty token. The file must be readable by UID 10001.
+secrets:
+  runner_token:
+    file: ${RUNNER_REGISTRATION_TOKEN_FILE:-/dev/null}
+
+volumes:
+  runner_home:
+
+# Internet egress (GitHub); shares nothing with edge_net, backend_net or mcp_net of the application.
+networks:
+  runner_net:
