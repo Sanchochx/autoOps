@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-CICD-001, US-PROXY-002
-**Status:** Pending
+**Status:** In progress
 
 ---
 
@@ -33,12 +33,12 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Align the Dockerfiles with CI and Build Every Image on Pull Requests**
+- [x] **AC-1: Align the Dockerfiles with CI and Build Every Image on Pull Requests**
   - `apps/frontend/Dockerfile` builds with Node 22: `ARG NODE_VERSION=22` and `FROM node:${NODE_VERSION}-alpine`. A CI step fails when that default differs from `apps/frontend/.nvmrc`, so the image and the pipeline cannot drift again. The Python images are already 3.11, the version CI tests.
   - New job `images` in `ci.yml`: on pull requests it builds the four images with `docker buildx bake` from `docker-compose.yml`, no push, GitHub Actions cache enabled; it is added to `needs:` of the `ci` gate.
   - **Verification:** locally, `docker compose build` still works and the frontend image reports Node 22 in its build stage; on a pull request the job is green, and breaking a `COPY` path in a Dockerfile turns `images` and `ci` red.
 
-- [ ] **AC-2: Compose Consumes Images by Tag, Development Keeps Building**
+- [x] **AC-2: Compose Consumes Images by Tag, Development Keeps Building**
   - `docker-compose.yml`: every service that has `build:` also gets `image: ${IMAGE_REPOSITORY:-autoops}/<service>:${IMAGE_TAG:-dev}` (`migrate` uses the `api-gateway` image). `.env.example` documents `IMAGE_REPOSITORY` and `IMAGE_TAG`; `validate_env.sh` enforces the production rule above.
   - The `compose` and `compose-guard` jobs of CICD-001 keep passing unchanged, plus one extra cell with `IMAGE_REPOSITORY=ghcr.io/example/autoops` and a SHA-like `IMAGE_TAG`.
   - **Verification:** `docker compose config` shows the expected image names for the default and for explicit values; `docker compose up -d --build` still starts the stack from a clean checkout; `validate_env.sh` fails with `ENVIRONMENT=production` and `IMAGE_TAG` unset or `dev`, and passes with a SHA.

@@ -445,7 +445,7 @@
 - **Acceptance Criteria:** 5
 - **Scope:** GitHub-hosted runners: pytest, frontend lint/typecheck/build, `docker compose config`, shellcheck.
 
-#### [ ] US-CICD-002: Build and Publish Images to GHCR
+#### [~] US-CICD-002: Build and Publish Images to GHCR
 - **File:** `context/user_stories/epic_14_cicd/US-CICD-002_publish_images.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts

@@ -5,7 +5,7 @@
 #
 # Variables (read from the environment, falling back to ${APP_DIR}/.env, like docker compose):
 #   APP_DIR=<repo root>   directory with the .env file
-# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN, PUBLIC_SCHEME and the TLS settings). Exit 0 = OK, 1 = insecure configuration.
+# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN, PUBLIC_SCHEME, the TLS settings and IMAGE_TAG). Exit 0 = OK, 1 = insecure configuration.
 # Wired as ExecStartPre= in autoops.service (see infra/systemd/README.md).
 set -eo pipefail
 
@@ -96,6 +96,13 @@ for name in PROXY_HTTPS_PORT HSTS_MAX_AGE_SECONDS; do
     failed=1
   fi
 done
+
+# Images (US-CICD-002): production runs an immutable published tag, never the local development build.
+image_tag="$(env_value IMAGE_TAG)"
+if [[ -z $image_tag || $image_tag == dev ]]; then
+  log "ERROR: IMAGE_TAG is empty or 'dev'; set the commit SHA of a published image (with IMAGE_REPOSITORY)."
+  failed=1
+fi
 
 ((failed == 0)) || { log "refusing to start with ENVIRONMENT=production."; exit 1; }
 log "OK: production secrets are not defaults."

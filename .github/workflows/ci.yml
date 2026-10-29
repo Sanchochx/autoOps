@@ -1,6 +1,7 @@
 name: CI
 
-# US-CICD-001. Validates code and configuration; it never builds images or deploys, and it needs no secrets.
+# US-CICD-001/002. Validates code and configuration and builds the images. Only a push to main publishes them (job
+# `publish`), using the built-in GITHUB_TOKEN; no other secret is involved.
 on:
   pull_request:
     branches: [develop, main]
@@ -80,6 +81,14 @@ jobs:
       matrix:
         tls_mode: [selfsigned, acme]
         files: ["-f docker-compose.yml", "-f docker-compose.yml -f docker-compose.dev-db.yml"]
+        image: [default]
+        include:
+          # US-CICD-002: the host consumes published images by repository and SHA tag.
+          - tls_mode: selfsigned
+            files: "-f docker-compose.yml"
+            image: pinned
+            image_repository: ghcr.io/example/autoops
+            image_tag: 0123456789abcdef0123456789abcdef01234567
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,7 +99,21 @@ jobs:
           TLS_MODE: ${{ matrix.tls_mode }}
           ACME_EMAIL: ${{ matrix.tls_mode == 'acme' && 'ci@example.com' || '' }}
           PUBLIC_SCHEME: ${{ matrix.tls_mode == 'acme' && 'https' || 'http' }}
+          IMAGE_REPOSITORY: ${{ matrix.image_repository }}
+          IMAGE_TAG: ${{ matrix.image_tag }}
         run: docker compose ${{ matrix.files }} config -q
+      - name: Images are named by repository and tag
+        if: matrix.image == 'pinned'
+        env:
+          TLS_MODE: ${{ matrix.tls_mode }}
+          IMAGE_REPOSITORY: ${{ matrix.image_repository }}
+          IMAGE_TAG: ${{ matrix.image_tag }}
+        run: |
+          images="$(docker compose ${{ matrix.files }} --profile tools config --images)"
+          echo "$images"
+          for svc in api-gateway frontend mcp-logs traefik; do
+            grep -qx "${IMAGE_REPOSITORY}/${svc}:${IMAGE_TAG}" <<<"$images" || { echo "missing image for ${svc}" >&2; exit 1; }
+          done
 
   # TLS_MODE has no default on purpose: the guard must still reject a missing value.
   compose-guard:
@@ -122,10 +145,36 @@ jobs:
       - name: Lint shell scripts
         run: git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
 
+  # Builds the four images exactly as the Compose declares them (contexts, Dockerfiles, build-args), without
+  # pushing, so a broken Dockerfile is caught before the merge. Fork pull requests need no token for this.
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Frontend image uses the Node version CI tests with
+        run: |
+          nvmrc="$(tr -d '[:space:]' < apps/frontend/.nvmrc)"
+          dockerfile="$(sed -n 's/^ARG NODE_VERSION=//p' apps/frontend/Dockerfile)"
+          echo ".nvmrc=${nvmrc} Dockerfile=${dockerfile}"
+          [ -n "$dockerfile" ] && [ "${nvmrc%%.*}" = "${dockerfile%%.*}" ] \
+            || { echo "apps/frontend/Dockerfile NODE_VERSION differs from .nvmrc" >&2; exit 1; }
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - run: cp .env.example .env
+      - name: Build the images
+        env:
+          TLS_MODE: selfsigned
+        run: |
+          docker buildx bake -f docker-compose.yml \
+            --set '*.cache-from=type=gha' --set '*.cache-to=type=gha,mode=max' \
+            api-gateway frontend mcp-logs traefik
+
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend, frontend, compose, compose-guard, shellcheck]
+    needs: [backend, frontend, compose, compose-guard, shellcheck, images]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -136,3 +185,43 @@ jobs:
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' >/dev/null
+
+  # US-CICD-002 AC-3. Publishes the images of a commit that reached main with a green CI: `needs: ci` (a red CI skips
+  # it, since an `if` without a status function implies success()) and the event guard keeps pull requests, forks
+  # and other branches from ever reaching the registry. The only job with a write token.
+  # Tags are the full commit SHA, immutable; there is no `latest`.
+  publish:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: cp .env.example .env
+      # GHCR requires lowercase repository names. The OCI labels trace every image to its commit; `source` also
+      # links the package to this repository, which is what lets GITHUB_TOKEN keep pushing to it.
+      - name: Build and push the images
+        env:
+          TLS_MODE: selfsigned
+          OWNER: ${{ github.repository_owner }}
+          IMAGE_TAG: ${{ github.sha }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          export IMAGE_REPOSITORY="ghcr.io/${OWNER,,}/autoops"
+          docker buildx bake -f docker-compose.yml --push \
+            --set '*.cache-from=type=gha' --set '*.cache-to=type=gha,mode=max' \
+            --set "*.labels.org.opencontainers.image.source=${SOURCE_URL}" \
+            --set "*.labels.org.opencontainers.image.revision=${IMAGE_TAG}" \
+            --set "*.labels.org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            api-gateway frontend mcp-logs traefik
