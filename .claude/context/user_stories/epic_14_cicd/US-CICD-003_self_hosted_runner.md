@@ -36,7 +36,7 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Runner Image**
+- [x] **AC-1: Runner Image**
   - `infra/runner/Dockerfile` and entrypoint: official `actions/runner` pinned by `RUNNER_VERSION` and `RUNNER_SHA256` (build args, checksum verified, build fails on mismatch), a non-root user, only the tools listed above, no Docker client. The entrypoint registers on first start with `config.sh --unattended --no-default-labels --labels "$RUNNER_LABELS" --name "$RUNNER_NAME" --disableupdate --replace` when `.runner` is absent, reading the token from a file, then `exec ./run.sh`. It exits with a clear message if the token file is missing on first start, and never prints the token.
   - **Verification:** `docker build` succeeds; with a wrong `RUNNER_SHA256` it fails; `docker run --rm <image> id -u` is not 0; `docker run --rm <image> which docker` finds nothing; starting without a token file fails with the message and without a stack trace.
 
