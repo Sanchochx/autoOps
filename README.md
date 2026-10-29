@@ -61,6 +61,18 @@ Run commands become available after the corresponding user stories:
 - **Frontend:** available after US-FE-001.
 - **Containers:** available in Phase 2.
 
+### Run published images (no local build)
+
+CI publishes the images to GHCR from `main`, tagged with the commit SHA. To run a given commit:
+
+```bash
+export IMAGE_REPOSITORY=ghcr.io/<owner>/autoops IMAGE_TAG=<full commit SHA>   # also settable in .env
+docker compose pull && docker compose up -d --no-build
+```
+
+Without those variables `docker compose up -d --build` builds locally and tags `autoops/<service>:dev`. See
+[`infra/ci/README.md`](infra/ci/README.md#images-us-cicd-002).
+
 ### Database migrations (Alembic, from the monorepo root)
 
 ```bash

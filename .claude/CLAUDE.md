@@ -33,7 +33,7 @@
 - **Containers:** Docker & Docker Compose
 - **Reverse proxy:** Traefik / Nginx with SSL termination (Let's Encrypt)
 - **Deployment OS:** Ubuntu Server (AWS EC2 / local VirtualBox VM)
-- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; automatic deployment over SSH)
+- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; automatic deployment over SSH)
 
 ---
 
@@ -84,6 +84,9 @@ docker compose up -d --build
 
 # Only Traefik publishes host ports (https://$DOMAIN:$PROXY_HTTPS_PORT; $PROXY_HTTP_PORT redirects to it); the gateway and frontend
 # are reachable only through it (/api, /ws -> gateway; / -> frontend). See infra/traefik/README.md
+
+# On a host: run a published commit instead of building (see infra/ci/README.md)
+#   IMAGE_REPOSITORY=ghcr.io/<owner>/autoops IMAGE_TAG=<sha> docker compose pull && docker compose up -d --no-build
 
 # Follow unified logs
 docker compose logs -f
@@ -199,6 +202,10 @@ PROXY_HTTP_PORT=80        # only redirects to HTTPS
 PROXY_HTTPS_PORT=443
 TLS_MODE=selfsigned       # required: selfsigned (local CA) | acme (Let's Encrypt HTTP-01); needs ACME_EMAIL
 HSTS_MAX_AGE_SECONDS=31536000
+
+# Container images (optional; defaults build locally as autoops/<service>:dev)
+IMAGE_REPOSITORY=ghcr.io/<owner>/autoops   # host: published images; owner in lowercase
+IMAGE_TAG=<commit SHA>                     # immutable tag; `dev` or empty is rejected when ENVIRONMENT=production
 ```
 
 ---
