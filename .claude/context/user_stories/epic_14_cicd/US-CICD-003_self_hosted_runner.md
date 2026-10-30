@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 8 pts
 **Dependencies:** US-CICD-002, US-SYS-003
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -56,7 +56,7 @@
   - **Verification:** dispatching the workflow on `main` is green and its log shows every assertion; dispatching it from another branch is rejected by the environment rule; a throw-away pull request that tries `runs-on: autoops-prod` does not start a job on the runner without approval (evidence recorded; the experiment is reverted).
   - **Evidence status (see `infra/runner/README.md#evidence`):** the dispatch on `main` is recorded (run 40961924146, green, nine assertions `ok`). The rejection from another branch is covered by the verified environment settings (`production` limited to `main`) but has **not been dispatched**; the fork pull request experiment is **pending** (it needs a fork owned by another account). Both are listed in the README with the exact command to close them.
 
-- [ ] **AC-5: Documentation, Evidence and Closing**
+- [x] **AC-5: Documentation, Evidence and Closing**
   - `infra/runner/README.md`: threat model (what the runner can and cannot do), variables, how to get a registration token, provisioning, upgrade procedure (bump `RUNNER_VERSION` and `RUNNER_SHA256`, rebuild), token rotation and how to remove a runner (`config.sh remove`), the ephemeral trade-off, the settings checklist from AC-4. `infra/ci/README.md`, `infra/README.md`, `.claude/CLAUDE.md` (structure and commands) and `README.md` mention it.
   - Evidence: runner `Idle` screenshot or `gh api repos/<owner>/<repo>/actions/runners` output, the green smoke run, the rejected run from a non-`main` branch and the `verify.sh` table.
   - **Verification:** a reader can provision, upgrade and remove the runner following only the document; plan updated (Epic 14 at 60%, Phase 5 at 6/8).
