@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   28                         │
+│  ✅ Completed:                   29                         │
 │  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    3                          │
+│  ⏸️  Pending:                    2                          │
 │                                                             │
-│  Progress: [█████████░] 90% (28/31)                          │
+│  Progress: [█████████░] 94% (29/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +57,7 @@
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 2 | 0 | 3 | [████░░░░░░] 40% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 3 | 0 | 2 | [██████░░░░] 60% |
 
 ---
 
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [██████░░░░] 62% (5/8)
+**Progress:** [███████░░░] 75% (6/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -453,7 +453,7 @@
 - **Acceptance Criteria:** 5
 - **Scope:** images tagged by commit SHA; `docker-compose.yml` consumes `image: ghcr.io/...:${IMAGE_TAG}` and keeps `build:` for development; `VITE_*` passed as build-args.
 
-#### [~] US-CICD-003: Containerized Self-Hosted Runner on the Host
+#### [x] US-CICD-003: Containerized Self-Hosted Runner on the Host
 - **File:** `context/user_stories/epic_14_cicd/US-CICD-003_self_hosted_runner.md`
 - **Priority:** HIGH
 - **Estimate:** 8 pts

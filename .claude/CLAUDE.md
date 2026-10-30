@@ -33,7 +33,7 @@
 - **Containers:** Docker & Docker Compose
 - **Reverse proxy:** Traefik / Nginx with SSL termination (Let's Encrypt)
 - **Deployment OS:** Ubuntu Server (AWS EC2 / local VirtualBox VM)
-- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; automatic deployment over SSH)
+- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; a containerized self-hosted runner on the host, see `infra/runner/README.md`; automatic deployment over SSH)
 
 ---
 
@@ -75,6 +75,10 @@ npm run build
 ```bash
 sudo ./scripts/provision/bootstrap.sh --env-file provision.env   # idempotent bootstrap
 sudo ./scripts/provision/verify.sh --env-file provision.env      # verify all controls (exit 1 on failure)
+
+# Optional self-hosted runner (US-CICD-003): runs only when RUNNER_REPO_URL is set in .env; see infra/runner/README.md
+#   RUNNER_REGISTRATION_TOKEN_FILE=<token file> sudo ./scripts/provision/75_runner.sh
+# Guards run by CI (GitHub-hosted): scripts/ci/check_runner_compose.sh, scripts/ci/check_runner_workflows.sh
 ```
 
 ### Docker Orchestration (Phase 2+)
@@ -109,8 +113,9 @@ autoops/
 │   └── mcp-servers/          # MCP servers (DB, logs and metrics isolation)
 ├── scripts/
 │   ├── provision/            # bootstrap.sh, verify.sh, NN_*.sh steps and checks/ (idempotent host setup)
-│   └── ops/                  # Backup/restore PostgreSQL, env validation
-├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup, ci) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
+│   ├── ops/                  # Backup/restore PostgreSQL, env validation
+│   └── ci/                   # Guards run by CI (runner Compose lock-down, workflows allowed to use the runner)
+├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup, ci, runner) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
 ├── .claude/
 │   ├── CLAUDE.md             # This file (architecture and standards guide)
 │   └── context/              # SDD documentation and tracking

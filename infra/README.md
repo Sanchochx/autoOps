@@ -14,6 +14,8 @@ the per-topic folders below.
 | [`systemd/`](systemd/README.md) | `autoops` service, migrations unit, backup timer (SYS-003) |
 | [`backup/`](backup/README.md) | PostgreSQL backups and restore (SYS-004) |
 | [`traefik/`](traefik/README.md) | Reverse proxy: single entry point, path routing (Phase 5, PROXY-001) |
+| [`ci/`](ci/README.md) | GitHub Actions CI, images published to GHCR (CICD-001, CICD-002) |
+| [`runner/`](runner/README.md) | Containerized self-hosted GitHub Actions runner, optional (Phase 5, CICD-003) |
 
 ## Scripts
 
@@ -23,9 +25,10 @@ the per-topic folders below.
 | `scripts/provision/verify.sh` | Runs every `checks/*.sh` (read-only), prints an OK/FAIL table, exits `1` on any failure |
 | `scripts/provision/provision.env.example` | Every variable, documented. Copy to `provision.env` (ignored by git, no secrets) |
 
-Bootstrap order: `10_users → 20_ssh → 30_fail2ban → 40_ufw → 50_os_baseline → 60_docker → 45_docker_ufw → 70_systemd`.
+Bootstrap order: `10_users → 20_ssh → 30_fail2ban → 40_ufw → 50_os_baseline → 60_docker → 45_docker_ufw → 70_systemd → 75_runner`.
 `45_docker_ufw` runs after Docker is installed despite its number. Each step has a matching `checks/NN_*.sh`;
-`checks/80_backup.sh` verifies the backup timer installed by `70_systemd`.
+`checks/80_backup.sh` verifies the backup timer installed by `70_systemd`. `75_runner` is optional: it does nothing (and its
+check is skipped) unless `RUNNER_REPO_URL` is set in `${APP_DIR}/.env`; see [`runner/README.md`](runner/README.md).
 
 ## Full cycle on a clean VM
 
