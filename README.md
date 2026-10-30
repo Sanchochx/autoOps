@@ -30,8 +30,9 @@ autoops/
 │   └── mcp-servers/     # MCP servers (DB, logs and metrics isolation)
 ├── scripts/
 │   ├── provision/       # Idempotent host bootstrap (bootstrap.sh), verify.sh and per-control checks
-│   └── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
-├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups, CI)
+│   ├── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
+│   └── ci/              # Guards run by CI (self-hosted runner lock-down and allowed workflows)
+├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups, CI, self-hosted runner)
 ├── .claude/
 │   ├── CLAUDE.md        # Project architecture and standards
 │   └── context/         # SDD documentation (plan, user stories, summaries)
@@ -91,6 +92,13 @@ sudo ./scripts/provision/verify.sh --env-file provision.env      # OK/FAIL table
 ```
 
 See [`infra/README.md`](infra/README.md) for the full cycle (variables, SSH confirmation, reboot test).
+
+### Self-hosted runner (optional, for continuous deployment)
+
+With `RUNNER_REPO_URL` set in `.env`, `bootstrap.sh` also installs a containerized GitHub Actions runner
+(`autoops-runner.service`, label `autoops-prod`): outbound connections only, no Docker socket, no access to the stack's
+networks, and usable only by `workflow_dispatch` / push-to-`main` workflows. See
+[`infra/runner/README.md`](infra/runner/README.md).
 
 The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
 

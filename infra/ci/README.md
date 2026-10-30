@@ -1,4 +1,4 @@
-# Continuous integration and images (US-CICD-001, US-CICD-002)
+# Continuous integration and images (US-CICD-001, US-CICD-002, US-CICD-003)
 
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to those branches,
 on GitHub-hosted runners. It **validates and builds**: pull requests build the images without pushing; only a push to
@@ -15,7 +15,9 @@ on GitHub-hosted runners. It **validates and builds**: pull requests build the i
 | `compose` (4 cells) | `docker compose config -q` for `TLS_MODE` ∈ {`selfsigned`, `acme`} × {base, base + `docker-compose.dev-db.yml`} using `.env.example` | `cp .env.example .env && docker compose config -q` (for `acme` also set `ACME_EMAIL` and `PUBLIC_SCHEME=https`) |
 | `compose-guard` | Without `TLS_MODE` the Compose must be rejected, and the error must name `TLS_MODE` | `sed '/^TLS_MODE=/d' .env.example > .env && docker compose config -q` (must fail) |
 | `shellcheck` | Every tracked `*.sh`, severity `warning`, config in `.shellcheckrc` | `git ls-files -z '*.sh' \| xargs -0 shellcheck --severity=warning` |
-| `images` | The four images build with `docker buildx bake` from `docker-compose.yml` (no push), and the `NODE_VERSION` of `apps/frontend/Dockerfile` equals `.nvmrc` | `cp .env.example .env && TLS_MODE=selfsigned docker buildx bake api-gateway frontend mcp-logs traefik` |
+| `images` | The four images build with `docker buildx bake` from `docker-compose.yml` (no push), and the `NODE_VERSION` of `apps/frontend/Dockerfile` equals `.nvmrc`. It also builds the self-hosted runner image (from `infra/runner`: `bake` resolves the build context against the working directory) | `cp .env.example .env && TLS_MODE=selfsigned docker buildx bake api-gateway frontend mcp-logs traefik` |
+| `runner-compose` | `infra/runner/docker-compose.yml` keeps the runner locked down, checked on the **resolved** model: no `docker.sock`, ports, privileged mode, `network_mode`, `cap_add` or host bind mounts; `cap_drop: [ALL]`, `no-new-privileges`, read-only root, one dedicated network, limits | `RUNNER_REPO_URL=https://github.com/o/r scripts/ci/check_runner_compose.sh` |
+| `runner-workflows` | A workflow that targets the self-hosted runner (`autoops-prod`) is triggered only by `workflow_dispatch` or `push` to `main`, and its jobs declare `environment: production` | `scripts/ci/check_runner_workflows.sh` (needs PyYAML) |
 | `publish` | Only on `push` to `main`, after `ci` is green: pushes the four images tagged with the commit SHA (the only job with `packages: write`) | — |
 | `ci` | Aggregate gate: passes only if every job above succeeded (also when one failed, was cancelled or skipped) | — |
 
@@ -166,7 +168,15 @@ packages are `public` (they inherit the visibility of the repository) and carry,
 registry, `org.opencontainers.image.revision` = the commit above, `.source` = https://github.com/Sanchochx/autoOps and
 `.created` = `2026-10-29T00:45:45Z` (`traefik` also keeps the upstream labels).
 
+## Self-hosted runner (US-CICD-003)
+
+The deploy job (US-CICD-004/005) runs on a runner that lives on the AutoOps host, in a container with no Docker socket
+and no network shared with the stack, so GitHub never needs to reach the host. This pipeline only guards it: the two
+jobs above run on GitHub-hosted runners and fail the build if the runner Compose loses a control or a workflow that
+targets the runner could be triggered from a pull request. Threat model, provisioning, GitHub settings and evidence:
+[`../runner/README.md`](../runner/README.md).
+
 ## Out of scope
 
-Self-hosted runner (US-CICD-003), deployment (US-CICD-004/005), image signing, SBOM, coverage thresholds, dependency
+Deployment (US-CICD-004/005), image signing, SBOM, coverage thresholds, dependency
 and image vulnerability scanning, retention of old image versions, multi-arch images.
