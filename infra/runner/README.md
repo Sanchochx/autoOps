@@ -66,3 +66,28 @@ gh run list --workflow runner-smoke.yml
 
 The "fork pull request does not reach the runner without approval" check needs a fork owned by **another account**: a
 pull request from a branch of this repository is written by a collaborator with write access, so it would run.
+
+## Evidence
+
+Recorded on 2026-10-29 for `Sanchochx/autoOps`.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Runner registered, label only `autoops-prod` | Done | `gh api repos/Sanchochx/autoOps/actions/runners` -> `{"name":"autoops-runner","status":"online","busy":false,"labels":["autoops-prod"]}` |
+| Smoke run on `main` | Done | Run `40961924146` (`workflow_dispatch`, `main`), job `isolation` green; log below |
+| Environment `production` limited to `main`, fork approval, read-only token | Done | Applied and verified with the commands above (`custom_branch_policies: true`, `["main"]`, `all_external_contributors`, `read`) |
+| Dispatch from another branch is rejected | **Pending** | Covered by the environment setting, not yet dispatched: `gh workflow run runner-smoke.yml --ref <other-branch>` must be refused with "not allowed to deploy to production" |
+| Fork pull request does not reach the runner without approval | **Pending** | Needs a fork owned by another account (see Smoke test); until then the covered assumption is `all_external_contributors` plus the `runner-workflows` guard |
+
+```text
+host=77b5104b8d9d runner=autoops-runner os=Linux/X64 uid=10001
+ok   does not run as root
+ok   no Docker socket (/var/run/docker.sock)
+ok   no Docker client installed
+ok   root filesystem is mounted read-only
+ok   job temp directory is writable
+ok   the name 'postgres' does not resolve
+ok   the name 'api-gateway' does not resolve
+ok   the name 'mcp-logs' does not resolve
+ok   HTTPS to api.github.com works
+```
