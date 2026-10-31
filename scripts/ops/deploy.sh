@@ -255,8 +255,9 @@ main() {
 
   APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
   [[ -f ${APP_DIR}/docker-compose.yml && -f ${APP_DIR}/.env ]] || die "docker-compose.yml or .env not found in ${APP_DIR}."
-  STATE_DIR="${DEPLOY_STATE_DIR:-${APP_DIR}/.deploy}"
-  OUTBOX_DIR="${DEPLOY_OUTBOX_DIR:-${STATE_DIR}/outbox}"
+  STATE_DIR="$(env_value DEPLOY_STATE_DIR)"; STATE_DIR="${STATE_DIR:-${APP_DIR}/.deploy}"
+  OUTBOX_DIR="$(env_value DEPLOY_OUTBOX_DIR)"; OUTBOX_DIR="${OUTBOX_DIR:-${STATE_DIR}/outbox}"
+  [[ $STATE_DIR == /* && $OUTBOX_DIR == /* ]] || die "DEPLOY_STATE_DIR and DEPLOY_OUTBOX_DIR must be absolute paths."
   HEALTH_PATH="${DEPLOY_HEALTH_PATH:-/api/v1/tickets}"
   HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-12}"
   HEALTH_INTERVAL="${DEPLOY_HEALTH_INTERVAL:-5}"
