@@ -27,7 +27,7 @@
 - **State in `${APP_DIR}/.deploy/`** (host-owned, 0700): `current`, `previous` and `history`. A release is applied by rewriting the single `IMAGE_TAG=` line of `${APP_DIR}/.env` atomically (temp file in the same directory, mode 0600 kept). `IMAGE_REPOSITORY` and every other line are never touched.
 - **Fixed order, failure before the point of no return changes nothing:** validate → provenance → `pull` the four images → backup (US-SYS-004, always) → migrate → rewrite the tag → `up --wait` → health-gate → record the status. A failure at `pull` or at the backup leaves the stack, the tag and the schema as they were.
 - **Backup before every deploy.** The seconds it adds are accepted: migrating without a restore point is the only step with no way back. A failed backup aborts the deploy.
-- **Health gate:** `--wait` (container healthchecks) plus an HTTPS probe through Traefik to `/api/health`, with retries and a timeout, using the local CA or the public certificate as configured.
+- **Health gate:** `--wait` (container healthchecks) plus an HTTPS probe through Traefik to `DEPLOY_HEALTH_PATH` (default `/api/v1/tickets`, expects 200; the gateway's `/health` is not routed by Traefik), with retries and a timeout, using the local CA or the public certificate as configured.
 - **Rollback restores the images, not the schema.** Migrations must stay backward-compatible with the previous release (expand/contract), or the rollback may run old code on a newer schema. The pre-deploy backup is the manual restore point. This limit is documented, not hidden.
 - **No registry credential on the host.** The GHCR packages are made public (the repository already is), so `docker compose pull` needs no token and no secret is stored for it. The package visibility setting and the `gh`/UI step to verify it are documented, like the settings of US-CICD-003.
 - **Serialization.** `flock` inside `deploy.sh` plus the oneshot unit: two requests never deploy at the same time; one that arrives during a deploy is processed afterwards.
@@ -39,9 +39,10 @@
 
 > Work ONE AT A TIME, in order. Mark `[x]` when each one is done and pause at the final checkpoint before closing the US.
 
-- [ ] **AC-1: Deploy Action `scripts/ops/deploy.sh`**
+- [x] **AC-1: Deploy Action `scripts/ops/deploy.sh`**
   - Flags `--tag <sha>`, `--request-file <path>` and `--dry-run`; reads `APP_DIR` and the rest of its settings from the environment and `.env`, nothing hardcoded. Implements the fixed order above, the `.deploy/` state files, the automatic rollback to `previous` on any failure after the tag was rewritten (including a failed health-gate), and an atomic `outbox/status` (`state=succeeded|rolled_back|failed`, `tag`, `run_id`, `started_at`, `finished_at`). Logs to stdout/stderr (journal). Exit code is non-zero unless the state is `succeeded`.
   - **Verification:** `shellcheck` is clean; deploying a good SHA ends `succeeded` and `current` holds it; a nonexistent SHA fails at `pull` and leaves the stack, `.env` and `.deploy/` unchanged; an image whose healthcheck fails ends `rolled_back` with the previous tag serving; a failed backup aborts before migrating; `--dry-run` changes nothing.
+  - **Evidence status:** `shellcheck` is clean and `scripts/ci/test_deploy.sh` (fake `docker`/`curl`, 23 assertions: success, failed pull, backup and migrate, failed `up`, failed health-gate with rollback, first deploy without a previous tag, request file, dry-run, usage) passes. The drills against the real stack on the VM are **pending**; the commands are in the hand-over of this AC and go to `infra/deploy/README.md` in AC-5.
 
 - [ ] **AC-2: Input and Provenance Guards**
   - The request parser and the provenance check described in Decisions, as functions of `deploy.sh` (or a sourced library) that can be tested without Docker. Rejects: wrong length, uppercase, non-hex, injection characters (`;`, `$(`, backticks, `../`, newlines), unknown or duplicated keys, a symlink, an oversized file, an empty file; a SHA not on `main`, not ahead of `current`, or without all four images in GHCR.
