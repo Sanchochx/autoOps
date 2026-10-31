@@ -90,7 +90,7 @@ Read from `${APP_DIR}/.env` (the only source: both Compose and the unit use it).
 | `RUNNER_VERSION` / `RUNNER_SHA256` | pin in the `Dockerfile` | Override the pinned runner release; change both together |
 | `RUNNER_CPUS`, `RUNNER_MEMORY_LIMIT`, `RUNNER_PIDS_LIMIT`, `RUNNER_WORKSPACE_SIZE` | `2`, `2g`, `512`, `2g` | Limits and size of the job workspace `tmpfs` |
 | `RUNNER_REGISTRATION_TOKEN_FILE` | none | One-time token file, only while registering (environment, `provision.env` or `.env`) |
-| `RUNNER_CONNECT_TIMEOUT` | `120` | Seconds `75_runner.sh` waits for `Listening for Jobs` |
+| `RUNNER_CONNECT_TIMEOUT` | `300` | Seconds `75_runner.sh` waits for `Listening for Jobs` |
 
 ## Provision
 

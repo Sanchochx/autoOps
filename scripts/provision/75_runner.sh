@@ -13,7 +13,8 @@
 #                                      self-hosted runner). Required only while the runner is not registered yet; set
 #                                      it in the environment, provision.env or ${APP_DIR}/.env. Outside the repository
 #                                      and APP_DIR; this script makes it 10001:10001 0600 (the UID of the runner).
-#   RUNNER_CONNECT_TIMEOUT=120         seconds to wait for "Listening for Jobs"
+#   RUNNER_CONNECT_TIMEOUT=300         seconds to wait for "Listening for Jobs" (a session left open by an unclean
+#                                      shutdown takes ~3 min to expire on GitHub's side)
 # Steps: validate -> build the image -> register once (credentials stay in the runner_home volume) -> install, enable
 # and start the unit -> wait until the runner is connected. See infra/runner/README.md.
 set -euo pipefail
@@ -31,7 +32,7 @@ SERVICE_USER="${SERVICE_USER:-autoops}"
 APP_DIR="${APP_DIR:-/opt/autoops}"
 APP_ENV_FILE="${APP_ENV_FILE:-${APP_DIR}/.env}"
 COMPOSE_FILE="${APP_DIR}/infra/runner/docker-compose.yml"
-CONNECT_TIMEOUT="${RUNNER_CONNECT_TIMEOUT:-120}"
+CONNECT_TIMEOUT="${RUNNER_CONNECT_TIMEOUT:-300}"
 
 [[ $APP_DIR == /* && $APP_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "APP_DIR inválido: '${APP_DIR}'."
 [[ -f $APP_ENV_FILE ]] || die "No existe ${APP_ENV_FILE}."

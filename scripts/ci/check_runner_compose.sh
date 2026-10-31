@@ -33,4 +33,7 @@ check "no devices, no host PID/IPC" 'all(.services[]; (.devices // []) == [] and
 check "a single dedicated network, not external" '((.networks // {}) | keys) == ["runner_net"] and (.networks.runner_net.external // false) == false'
 check "memory, CPU and pids limits" 'all(.services[]; .mem_limit != null and .cpus != null and .pids_limit != null)'
 
+check "graceful shutdown (run.sh traps SIGTERM and closes the GitHub session)" \
+  'all(.services[]; .environment.RUNNER_MANUALLY_TRAP_SIG == "1")'
+
 exit "$failed"

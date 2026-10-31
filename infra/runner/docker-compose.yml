@@ -37,6 +37,10 @@ services:
       HOME: /tmp
       DOTNET_CLI_HOME: /tmp
       DOTNET_NOLOGO: "1"
+      # Graceful shutdown: without it run.sh has no signal trap, SIGTERM kills the bash script and orphans the
+      # listener, which Docker then SIGKILLs without deleting its GitHub session (next start: "A session for this
+      # runner already exists", Conflict, for ~3 min). With it run.sh forwards INT to the listener, which closes the session.
+      RUNNER_MANUALLY_TRAP_SIG: "1"
     secrets: [runner_token]
     volumes:
       # Working copy of the runner and its credentials (.runner, .credentials*): survives restarts.
