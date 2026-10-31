@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# US-CICD-004 (AC-1): exercises scripts/ops/deploy.sh against a fake `docker` and `curl` (no Docker needed).
+# US-CICD-004 (AC-1, AC-2): exercises scripts/ops/deploy.sh against a fake `docker` and `curl` (no Docker needed).
 #
 #   scripts/ci/test_deploy.sh
 #
 # Each case builds a throw-away APP_DIR, runs deploy.sh and asserts on the exit code, .env, .deploy/ state, outbox/status
-# and the calls the fake docker recorded. Exit 0 = every case passed.
+# and the calls the fake docker recorded. Part 1 is the deploy flow, part 2 the request parser and the provenance guards
+# (every rejected request must leave no docker call at all). Exit 0 = every case passed.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,6 +25,7 @@ cat >"${WORK}/bin/docker" <<'FAKE'
 envtag="$(grep -E '^IMAGE_TAG=' "${APP_DIR}/.env" | tail -n1 | cut -d= -f2)"
 echo "${IMAGE_TAG:-} | env=${envtag} | $*" >>"${APP_DIR}/docker.log"
 case " $* " in
+  *" manifest inspect "*) [[ -z ${FAKE_MISSING_IMAGE:-} ]] || exit 1 ;;
   *" pull "*) [[ -z ${FAKE_FAIL_PULL:-} ]] || exit 1 ;;
   *" run "*) [[ -z ${FAKE_FAIL_MIGRATE:-} ]] || exit 1 ;;
   *" --remove-orphans"*) [[ $envtag != "${FAKE_BAD_UP_TAG:-none}" ]] || exit 1 ;;
@@ -34,6 +36,12 @@ cat >"${WORK}/bin/curl" <<'FAKE'
 #!/usr/bin/env bash
 envtag="$(grep -E '^IMAGE_TAG=' "${APP_DIR}/.env" | tail -n1 | cut -d= -f2)"
 echo "curl env=${envtag} | $*" >>"${APP_DIR}/docker.log"
+if [[ " $* " == *"/compare/"* ]]; then  # GitHub compare API: <base>...<head>; nested files[].status must be ignored
+  [[ -z ${FAKE_API_DOWN:-} ]] || exit 22
+  if [[ " $* " == *"...main?"* ]]; then st=${FAKE_MAIN_STATUS:-ahead}; else st=${FAKE_FWD_STATUS:-ahead}; fi
+  printf '{"url":"x","status":"%s","files":[{"status":"modified"}]}\n' "$st"
+  exit 0
+fi
 [[ $envtag != "${FAKE_BAD_HEALTH_TAG:-none}" ]]
 FAKE
 chmod +x "${WORK}/bin/docker" "${WORK}/bin/curl"
@@ -43,7 +51,7 @@ new_app() {
   APP="$(mktemp -d "${WORK}/app.XXXXXX")"
   mkdir -p "${APP}/scripts/ops"
   : >"${APP}/docker-compose.yml"
-  printf 'DOMAIN=autoops.local\nPROXY_HTTPS_PORT=8443\nTLS_MODE=selfsigned\nIMAGE_REPOSITORY=ghcr.io/o/autoops\nSECRET_KEY=a b*c\nIMAGE_TAG=%s\n' "${1:-}" >"${APP}/.env"
+  printf 'DOMAIN=autoops.local\nPROXY_HTTPS_PORT=8443\nTLS_MODE=selfsigned\nIMAGE_REPOSITORY=ghcr.io/o/autoops\nRUNNER_REPO_URL=https://github.com/o/autoops\nSECRET_KEY=a b*c\nIMAGE_TAG=%s\n' "${1:-}" >"${APP}/.env"
   chmod 600 "${APP}/.env"
   cat >"${APP}/scripts/ops/backup_postgres.sh" <<'STUB'
 #!/usr/bin/env bash
@@ -125,6 +133,82 @@ new_app "$OLD" "$OLD"; run
 check "usage: no arguments -> exit 2" eq "$RC" 2
 new_app "$OLD" "$OLD"; sed -i '/^IMAGE_REPOSITORY=/d' "${APP}/.env"; run --tag "$GOOD"
 check "preflight: IMAGE_REPOSITORY unset -> failed, no docker call" bash -c "[[ $RC == 1 && '$(status_of reason)' == preflight && ! -e '${APP}/docker.log' ]]"
+
+# ======================================== part 2: request parser and provenance guards ========================================
+# shellcheck disable=SC2059  # the printf formats are the test data
+reject() { # description, then the file content via stdin-less printf args: <printf format> [args...]
+  local d=$1; shift
+  new_app "$OLD" "$OLD"; printf "$@" >"${APP}/req"; run --request-file "${APP}/req"
+  check "parser rejects: $d" bash -c "[[ $RC == 1 && '$(status_of reason)' == invalid_request && ! -e '${APP}/docker.log' && '$(env_tag)' == $OLD ]]"
+}
+# shellcheck disable=SC2016  # literal $( and backticks are the point
+{
+reject "uppercase tag" 'tag=%s\n' "${GOOD^^}"
+reject "39-character tag" 'tag=%s\n' "${GOOD:1}"
+reject "41-character tag" 'tag=%sa\n' "$GOOD"
+reject "non-hex tag" 'tag=%sz\n' "${GOOD:1}"
+reject "shell metacharacters" 'tag=%s;reboot\n' "$GOOD"
+reject "command substitution" 'tag=$(id)\n'
+reject "backticks" 'tag=`id`\n'
+reject "path traversal" 'tag=../../etc/passwd\n'
+reject "a second line with a command" 'tag=%s\nrm -rf /\n' "$GOOD"
+reject "unknown key" 'tag=%s\ncmd=reboot\n' "$GOOD"
+reject "duplicated tag" 'tag=%s\ntag=%s\n' "$GOOD" "$OLD"
+reject "duplicated run_id" 'tag=%s\nrun_id=1\nrun_id=2\n' "$GOOD"
+reject "run_id with letters" 'tag=%s\nrun_id=1a\n' "$GOOD"
+reject "run_id of 21 digits" 'tag=%s\nrun_id=123456789012345678901\n' "$GOOD"
+reject "missing tag" 'run_id=5\n'
+reject "line without '='" 'tag=%s\nnoise\n' "$GOOD"
+reject "blank line" 'tag=%s\n\n' "$GOOD"
+reject "leading space" ' tag=%s\n' "$GOOD"
+reject "CRLF line endings" 'tag=%s\r\n' "$GOOD"
+reject "NUL byte" 'tag=%s\n\0' "$GOOD"
+reject "empty file" ''
+reject "oversized file" 'tag=%s\nrun_id=%0300d\n' "$GOOD" 1
+}
+new_app "$OLD" "$OLD"; printf 'tag=%s\n' "$GOOD" >"${APP}/real"; ln -s "${APP}/real" "${APP}/req"; run --request-file "${APP}/req"
+check "parser rejects: symlink to a valid request" bash -c "[[ $RC == 1 && '$(status_of reason)' == invalid_request && ! -e '${APP}/docker.log' ]]"
+new_app "$OLD" "$OLD"; mkdir "${APP}/req"; run --request-file "${APP}/req"
+check "parser rejects: a directory" bash -c "[[ $RC == 1 && '$(status_of reason)' == invalid_request && ! -e '${APP}/docker.log' ]]"
+new_app "$OLD" "$OLD"; run --request-file "${APP}/absent"
+check "parser rejects: a missing file" bash -c "[[ $RC == 1 && '$(status_of reason)' == invalid_request && ! -e '${APP}/docker.log' ]]"
+
+# shellcheck disable=SC2059
+accept() { # description, printf format and args
+  local d=$1; shift
+  new_app "$OLD" "$OLD"; printf "$@" >"${APP}/req"; run --request-file "${APP}/req"
+  check "parser accepts: $d" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded && '$(env_tag)' == $GOOD ]]"
+}
+{
+accept "tag only, no trailing newline" 'tag=%s' "$GOOD"
+accept "run_id before tag" 'run_id=77\ntag=%s\n' "$GOOD"
+}
+
+# provenance: the API is asked about <tag>...main and <current>...<tag>; only ahead/identical (and ahead) pass.
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; run --request-file "${APP}/req"
+check "provenance: asks main-reachability and forward-only" bash -c "grep -q 'compare/${GOOD}...main' '${APP}/docker.log' && grep -q 'compare/${OLD}...${GOOD}' '${APP}/docker.log'"
+for st in behind diverged; do
+  new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; FAKE_MAIN_STATUS=$st run --request-file "${APP}/req"
+  check "provenance: not on main (${st}) -> rejected, nothing pulled" bash -c "[[ $RC == 1 && '$(status_of reason)' == provenance_rejected && '$(env_tag)' == $OLD ]] && ! grep -q 'pull\|manifest\|backup' '${APP}/docker.log'"
+  new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; FAKE_FWD_STATUS=$st run --request-file "${APP}/req"
+  check "provenance: older than current (${st}) -> rejected, nothing pulled" bash -c "[[ $RC == 1 && '$(status_of reason)' == provenance_rejected && '$(env_tag)' == $OLD ]] && ! grep -q 'pull\|manifest\|backup' '${APP}/docker.log'"
+done
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$OLD" >"${APP}/req"; FAKE_MAIN_STATUS=identical run --request-file "${APP}/req"
+check "provenance: redeploying the current tag is allowed" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded ]]"
+new_app "$OLD" ""; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; sed -i '/^IMAGE_TAG=/d' "${APP}/.env"; run --request-file "${APP}/req"
+check "provenance: no current release -> only the main check" bash -c "[[ $RC == 0 ]] && ! grep -q 'compare/.*...${GOOD}' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; FAKE_API_DOWN=1 run --request-file "${APP}/req"
+check "provenance: API unreachable fails closed" bash -c "[[ $RC == 1 && '$(status_of reason)' == provenance_unavailable && '$(env_tag)' == $OLD ]] && ! grep -q 'pull\|manifest' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; sed -i '/^RUNNER_REPO_URL=/d' "${APP}/.env"; run --request-file "${APP}/req"
+check "provenance: no repository configured fails closed" bash -c "[[ $RC == 1 && '$(status_of reason)' == provenance_unavailable ]]"
+new_app "$OLD" "$OLD"; FAKE_MAIN_STATUS=behind FAKE_API_DOWN=1 run --tag "$GOOD"
+check "operator --tag skips the ancestry check" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded ]] && ! grep -q 'compare/' '${APP}/docker.log'"
+
+# images in the registry
+new_app "$OLD" "$OLD"; FAKE_MISSING_IMAGE=1 run --tag "$GOOD"
+check "images: missing in the registry -> failed/images_missing, nothing pulled" bash -c "[[ $RC == 1 && '$(status_of reason)' == images_missing && '$(env_tag)' == $OLD ]] && ! grep -q ' pull \|backup' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; run --tag "$GOOD"
+check "images: all four services are checked" bash -c "[[ \$(grep -c 'manifest inspect' '${APP}/docker.log') == 4 ]] && grep -q 'ghcr.io/o/autoops/traefik:${GOOD}' '${APP}/docker.log'"
 
 echo "passed=${PASS} failed=${FAIL}"
 [[ $FAIL -eq 0 ]]

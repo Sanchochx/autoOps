@@ -16,6 +16,11 @@
 #   DEPLOY_HEALTH_PATH=/api/v1/tickets          path probed through the proxy (200 expected); /health is not routed
 #   DEPLOY_HEALTH_RETRIES=12  DEPLOY_HEALTH_INTERVAL=5  DEPLOY_LOCK_TIMEOUT=600  DEPLOY_WAIT_TIMEOUT=240
 #   IMAGE_REPOSITORY (required), DOMAIN, PROXY_HTTPS_PORT, TLS_MODE, TLS_DIR   as in .env.example
+#   DEPLOY_REPO=<owner>/<repo>       repository whose `main` is the source of truth (default: from RUNNER_REPO_URL)
+#   DEPLOY_BRANCH=main  DEPLOY_GITHUB_API=https://api.github.com  DEPLOY_IMAGE_SERVICES="api-gateway frontend mcp-logs traefik"
+# Guards (US-CICD-004 AC-2): a runner request (--request-file) must name a SHA that is on DEPLOY_BRANCH and not older than the
+# current release; any mode requires the images to exist in the registry. An operator's --tag skips the ancestry check (the
+# operator may roll back) but not the image check.
 # Exit 0 only when the final state is `succeeded`. Logs go to stdout/stderr (journal).
 # The request is untrusted input: only `tag` and `run_id` are read, and never passed to a shell.
 # The functions are meant to be testable by sourcing this file (main only runs when executed).
@@ -51,13 +56,19 @@ set_env_value() {
 # parse_request <file>: sets TAG and RUN_ID, or returns 1 (REQUEST_ERROR says why). Accepts only the keys `tag`
 # (40 lowercase hex) and `run_id` (digits), each at most once, in a regular file (not a symlink) of at most 256 bytes.
 parse_request() {
-  local file=$1 size content line key value seen_tag=0 seen_run=0
+  local file=$1 size content line key value seen_tag=0 seen_run=0 fd fd_id path_id
   TAG=""; RUN_ID=""; REQUEST_ERROR=""
   [[ -L $file ]] && { REQUEST_ERROR="request is a symlink"; return 1; }
   [[ -f $file ]] || { REQUEST_ERROR="request is not a regular file"; return 1; }
-  size="$(stat -c %s -- "$file")"
-  ((size > 0 && size <= REQUEST_MAX_BYTES)) || { REQUEST_ERROR="request size out of range"; return 1; }
-  content="$(LC_ALL=C head -c "$REQUEST_MAX_BYTES" -- "$file" | LC_ALL=C tr -d '\000')"
+  # Open once, then check that the descriptor and the path are the same inode: the writer (the runner) cannot swap the
+  # file for a symlink between the check and the read.
+  exec {fd}<"$file" 2>/dev/null || { REQUEST_ERROR="request cannot be opened"; return 1; }
+  fd_id="$(stat -L -c '%d:%i' "/proc/self/fd/${fd}")"; path_id="$(stat -c '%d:%i' -- "$file")"
+  if [[ $fd_id != "$path_id" || -L $file ]]; then exec {fd}<&-; REQUEST_ERROR="request changed while being read"; return 1; fi
+  size="$(stat -L -c %s "/proc/self/fd/${fd}")"
+  if ! ((size > 0 && size <= REQUEST_MAX_BYTES)); then exec {fd}<&-; REQUEST_ERROR="request size out of range"; return 1; fi
+  content="$(LC_ALL=C head -c "$REQUEST_MAX_BYTES" <&"$fd" | LC_ALL=C tr -d '\000')"
+  exec {fd}<&-
   [[ ${#content} -ge $((size - 1)) ]] || { REQUEST_ERROR="request contains NUL bytes"; return 1; }
   [[ $content != *$'\r'* ]] || { REQUEST_ERROR="request contains CR"; return 1; }
   while IFS= read -r line || [[ -n $line ]]; do
@@ -126,6 +137,44 @@ finish() {
   echo "$(now) $1 ${TAG:-none} ${RUN_ID:-none} $2" >>"${STATE_DIR}/history"
   log "state=$1 reason=$2 rollback=$3 tag=${TAG:-none}"
   [[ $1 == succeeded ]]
+}
+
+# --- guards (US-CICD-004 AC-2) ----------------------------------------------------------------------------------------
+# compare_status <base> <head>: prints the GitHub compare status of head relative to base (ahead|identical|behind|diverged).
+# The response is parsed as JSON (its `files[]` entries have their own `status`); a transport error or an unparsable body
+# returns 1 so the caller fails closed.
+compare_status() {
+  local body
+  body="$(curl --fail --silent --show-error --max-time 15 --header 'Accept: application/vnd.github+json' \
+    "${GITHUB_API}/repos/${DEPLOY_REPO}/compare/${1}...${2}?per_page=1")" || return 1
+  python3 -I -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<<"$body" 2>/dev/null
+}
+
+# verify_provenance <tag> <current>: sets PROV_REASON. The tag must be on DEPLOY_BRANCH (main is ahead of it or the same)
+# and, when a release is running, not older than it (the tag is ahead of the current one).
+verify_provenance() {
+  local tag=$1 current=$2 st
+  PROV_REASON=provenance_unavailable
+  [[ $DEPLOY_REPO =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { log "DEPLOY_REPO is not set or invalid: cannot verify the request"; return 1; }
+  st="$(compare_status "$tag" "$DEPLOY_BRANCH")" || { log "could not query the GitHub compare API"; return 1; }
+  PROV_REASON=provenance_rejected
+  case $st in ahead | identical) ;; *) log "${tag} is not on ${DEPLOY_BRANCH} (compare: ${st})"; return 1 ;; esac
+  if [[ -n $current && $current != "$tag" ]]; then
+    PROV_REASON=provenance_unavailable
+    st="$(compare_status "$current" "$tag")" || { log "could not query the GitHub compare API"; return 1; }
+    PROV_REASON=provenance_rejected
+    [[ $st == ahead ]] || { log "${tag} is not ahead of the current release ${current} (compare: ${st})"; return 1; }
+  fi
+  PROV_REASON=""
+}
+
+# verify_images <tag>: every image of the release exists in the registry (nothing is pulled).
+verify_images() {
+  local svc services
+  read -ra services <<<"$IMAGE_SERVICES"
+  for svc in "${services[@]}"; do
+    docker manifest inspect "${IMAGE_REPO}/${svc}:${1}" >/dev/null 2>&1 || { log "image ${IMAGE_REPO}/${svc}:${1} not found"; return 1; }
+  done
 }
 
 # --- steps -----------------------------------------------------------------------------------------------------------
@@ -213,6 +262,19 @@ main() {
   HEALTH_INTERVAL="${DEPLOY_HEALTH_INTERVAL:-5}"
   WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT:-240}"
   LOCK_TIMEOUT="${DEPLOY_LOCK_TIMEOUT:-600}"
+  IMAGE_REPO="$(env_value IMAGE_REPOSITORY)"
+  IMAGE_SERVICES="${DEPLOY_IMAGE_SERVICES:-api-gateway frontend mcp-logs traefik}"
+  DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+  GITHUB_API="${DEPLOY_GITHUB_API:-https://api.github.com}"
+  DEPLOY_REPO="$(env_value DEPLOY_REPO)"
+  if [[ -z $DEPLOY_REPO ]]; then
+    local url
+    url="$(env_value RUNNER_REPO_URL)"
+    [[ $url == https://github.com/* ]] && { DEPLOY_REPO="${url#https://github.com/}"; DEPLOY_REPO="${DEPLOY_REPO%.git}"; }
+  fi
+  [[ $IMAGE_SERVICES =~ ^[a-z0-9\ -]+$ ]] || die "DEPLOY_IMAGE_SERVICES is invalid."
+  [[ $DEPLOY_BRANCH =~ ^[A-Za-z0-9._/-]+$ ]] || die "DEPLOY_BRANCH is invalid."
+  [[ $GITHUB_API == https://* && $GITHUB_API =~ ^[A-Za-z0-9:/._-]+$ ]] || die "DEPLOY_GITHUB_API must be an https URL."
   local n
   for n in "$HEALTH_RETRIES" "$HEALTH_INTERVAL" "$WAIT_TIMEOUT" "$LOCK_TIMEOUT"; do
     [[ $n =~ ^[0-9]+$ ]] || die "DEPLOY_* numeric settings must be non-negative integers."
@@ -264,7 +326,11 @@ main() {
   [[ $current =~ $TAG_RE ]] || current=""
   PREVIOUS=$current
 
-  [[ -n $(env_value IMAGE_REPOSITORY) ]] || { log "IMAGE_REPOSITORY is not set: the host only pulls published images"; finish failed preflight none || true; return 1; }
+  [[ -n $IMAGE_REPO ]] || { log "IMAGE_REPOSITORY is not set: the host only pulls published images"; finish failed preflight none || true; return 1; }
+  if [[ -n $request_file ]]; then
+    verify_provenance "$TAG" "$current" || { finish failed "$PROV_REASON" none || true; return 1; }
+  fi
+  verify_images "$TAG" || { finish failed images_missing none || true; return 1; }
   write_status running none none
   log "deploying ${TAG} (run_id=${RUN_ID}, current=${current:-none})"
 
