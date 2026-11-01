@@ -185,6 +185,9 @@ jobs:
           persist-credentials: false
       - run: python3 -c 'import yaml' 2>/dev/null || pip install --user pyyaml==6.0.3
       - run: scripts/ci/check_runner_workflows.sh
+      # US-CICD-005: the guard must really bite on deploy.yml (a pull_request trigger, no `production` environment...).
+      - name: The guard rejects a weakened workflow
+        run: scripts/ci/test_runner_workflows_guard.sh
 
   # US-CICD-004 AC-2: the host treats the deploy request as untrusted input. The parser (symlinks, size, NUL/CR, unknown or
   # duplicated keys, injection characters) and the provenance checks (tag on main, not older than the current release,

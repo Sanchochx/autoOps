@@ -1,0 +1,100 @@
+name: Deploy
+
+# US-CICD-005 AC-1. Continuous delivery: a commit that reached `main` with a green CI (jobs `ci` and `publish` of the CI run of
+# that same commit) is handed to the host, which validates it, pulls the images, applies them, health-checks and rolls back
+# (US-CICD-004). This workflow never touches Docker: the runner only leaves a request (scripts/ci/request_deploy.sh).
+#
+# Triggers are limited on purpose: the job below runs on the self-hosted runner, and scripts/ci/check_runner_workflows.sh
+# only allows `workflow_dispatch` and `push` to `main` for workflows that use it, plus `environment: production`
+# (limited to `main` in the repository settings). `workflow_run` is not allowed, so the gate polls instead.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# One deploy at a time and in order: a newer merge waits (and replaces an older one that is still waiting); a deploy in flight
+# is never cancelled, because that would abandon a request the host is already processing. The host also rejects a SHA that
+# is older than the running release, so a late older run cannot go back.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # GitHub-hosted: waits until the CI run of this commit has finished and both `ci` (everything tested) and `publish` (the four
+  # images are in GHCR) succeeded. A red, cancelled or missing CI ends here and the host is never asked.
+  wait-for-ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for the CI run of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          POLL_SECONDS: "20"
+          MAX_POLLS: "85" # 85 x 20 s, just under the job timeout
+        run: |
+          run_id=""
+          for ((i = 1; i <= MAX_POLLS; i++)); do
+            # The newest `CI` run for this exact commit that came from a push (a re-run keeps the same run id).
+            run="$(gh api "repos/${REPOSITORY}/actions/runs?head_sha=${SHA}&event=push&per_page=50" \
+              --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml")] | sort_by(.run_number) | last // empty')"
+            if [ -z "$run" ]; then
+              echo "no CI run for ${SHA} yet (${i}/${MAX_POLLS})"
+            else
+              run_id="$(jq -r '.id' <<<"$run")"
+              status="$(jq -r '.status' <<<"$run")"
+              if [ "$status" = completed ]; then break; fi
+              echo "CI run ${run_id} is ${status} (${i}/${MAX_POLLS})"
+            fi
+            sleep "$POLL_SECONDS"
+          done
+          [ -n "$run_id" ] && [ "${status:-}" = completed ] || { echo "::error::the CI run of ${SHA} did not finish in time"; exit 1; }
+
+          jobs="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
+            --jq '[.jobs[] | {name, conclusion}]')"
+          jq -r '.[] | "\(.name): \(.conclusion)"' <<<"$jobs"
+          for name in ci publish; do
+            conclusion="$(jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | .conclusion // "missing"' <<<"$jobs")"
+            [ "$conclusion" = success ] || { echo "::error::job '${name}' of the CI run ${run_id} is '${conclusion}', nothing is deployed"; exit 1; }
+          done
+          echo "CI run ${run_id} is green and the images of ${SHA} are published."
+
+  # Self-hosted runner (US-CICD-003): it can only leave a request in the inbox and read the answer from the outbox.
+  deploy:
+    needs: wait-for-ci
+    runs-on: autoops-prod
+    environment: production
+    # request_deploy.sh waits up to DEPLOY_WAIT_TIMEOUT for the host (pull + backup + migrate + up + probe, and a rollback).
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Ask the host to deploy this commit
+        env:
+          DEPLOY_WAIT_TIMEOUT: "1500"
+        run: |
+          # GITHUB_SHA and GITHUB_RUN_ID are the defaults of the script. Exit: 0 succeeded, 1 rolled back, 2 failed, 3 no answer.
+          set +e
+          outcome="$(scripts/ci/request_deploy.sh)"
+          rc=$?
+          set -e
+          echo "$outcome"
+          # `outcome` is built by the script only from fields it validated (fixed words, a SHA and digits).
+          {
+            echo "### Deploy of \`${GITHUB_SHA}\`"
+            echo
+            if [ -n "$outcome" ]; then
+              echo '```'
+              echo "$outcome"
+              echo '```'
+            else
+              echo "No outcome from the host (exit code ${rc}): see \`journalctl -u autoops-deploy.service\` on the host."
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+          exit "$rc"
