@@ -9,8 +9,8 @@
 #                            a patch requires it. Default: no automatic reboot.
 #   EXTRA_PACKAGES="git htop tree"  admin utilities (in addition to the mandatory ones)
 #   APT_UPGRADE=1            run `apt-get upgrade` (0 = only refresh the index)
-#   DISABLE_SERVICES="avahi-daemon cups cups-browsed rpcbind bluetooth ModemManager"
-#                            unneeded services to disable if present
+#   DISABLE_SERVICES="avahi-daemon cups cups-browsed rpcbind bluetooth ModemManager apport"
+#                            unneeded services to disable if present (apport: its crash handler sets fs.suid_dumpable=2, the baseline wants 0)
 # See infra/sysctl/ for kernel parameters.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
@@ -26,7 +26,7 @@ TIMEZONE="${TIMEZONE:-UTC}"
 AUTO_REBOOT_TIME="${AUTO_REBOOT_TIME:-}"
 EXTRA_PACKAGES="${EXTRA_PACKAGES-git htop tree}"
 APT_UPGRADE="${APT_UPGRADE:-1}"
-DISABLE_SERVICES="${DISABLE_SERVICES-avahi-daemon cups cups-browsed rpcbind bluetooth ModemManager}"
+DISABLE_SERVICES="${DISABLE_SERVICES-avahi-daemon cups cups-browsed rpcbind bluetooth ModemManager apport}"
 # ca-certificates/curl/gnupg: prerequisites of Docker's apt repository (US-SYS-002).
 REQUIRED_PACKAGES="ca-certificates curl gnupg jq chrony unattended-upgrades"
 

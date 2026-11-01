@@ -84,6 +84,9 @@ no network with the application and has a read-only root filesystem, plus keepin
 
 ## GitHub settings
 
+`deploy.yml` (US-CICD-005) is the workflow that uses this runner in production. `environment: production` has **no required
+reviewers** (automatic deploys); to require approval before each deploy add them under Settings → Environments → `production`.
+
 Set `REPO=<owner>/<repo>` and run with a token that has admin rights on the repository (`gh auth login`).
 
 ```bash

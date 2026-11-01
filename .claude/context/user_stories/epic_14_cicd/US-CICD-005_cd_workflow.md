@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-CICD-004
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -45,17 +45,20 @@
   - **Verification:** each check fails the script when its condition is broken (one mutation per check); `shellcheck` clean; `deploy-guards` stays green.
   - **Evidence status:** `scripts/ci/test_smoke.sh` (fake `curl`/`docker`, 17 assertions, in `deploy-guards`): the healthy case passes with six `ok`; frontend 502, non-HTML, missing HSTS, API 404, no redirect, redirect without `Location`, gateway on another tag or not running each fail only their own check; an unreachable stack fails all five HTTP checks; invalid input exits 2; mutations of `smoke_test.sh` (status check, content type, redirect code/Location, image comparison, domain) turn the suite red. `scripts/ci/test_deploy.sh` is at 67 assertions (+5): smoke passes → `succeeded` with the new gateway image expected; smoke fails → `rolled_back`/`smoke_failed`/`rollback=ok`, and the rollback is smoke-tested against the previous image; a failing health probe never reaches the smoke test; smoke failing for both → `failed`/`rollback=failed`; three mutations of `deploy.sh` (smoke ignored, rollback not smoke-tested, wrong reason) turn it red. `shellcheck` clean. **Verified on the VM (2026-11-01):** run by hand against the live stack (release `3087d5d`, self-signed CA, `autoops.local`), all six checks `ok` and exit 0 (frontend 200 and HTML, HSTS, API 200, HTTP redirect, gateway on the deployed tag). **Not yet seen:** `reason=smoke_failed` in a real `status` (the failure path is covered by `test_deploy.sh`) and the smoke test inside a real deploy (first one is AC-3).
 
-- [ ] **AC-3: End-to-End Continuous Delivery**
+- [x] **AC-3: End-to-End Continuous Delivery**
   - A real merge to `main` triggers CI, `publish`, `deploy.yml`, the request to the host and the smoke test without any manual command, and the host ends on the new SHA. Evidence: the GitHub run URLs, the `status` (`state=succeeded`), `docker ps` showing the new tag and the `history` line.
   - **Verification:** a docs-only merge is enough; the time from merge to `succeeded` is recorded.
+  - **Evidence status:** merge of PR #12 (`4538ba4`) at 14:31:14 UTC 2026-11-01 started `CI` ([41316601368](https://github.com/Sanchochx/autoOps/actions/runs/41316601368)) and `Deploy` ([41316601384](https://github.com/Sanchochx/autoOps/actions/runs/41316601384)) with no manual command: `wait-for-ci` 14:31:19–14:34:27, `deploy` 14:34:31–14:35:52. **Merge to `succeeded`: about 4 min 38 s.** Journal: `deploy: state=succeeded reason=none rollback=none tag=4538ba4…` and six smoke-test `ok`. Reaching it took three environment fixes (PR #10 `noexec` workspace, PR #11 stderr, PR #12 flaky outbound TLS).
 
-- [ ] **AC-4: Rollback Evidence (reduced)**
+- [x] **AC-4: Rollback Evidence (reduced)**
   - No broken commit is published to `main` on purpose. The `rolled_back` path is covered by the cases added to `scripts/ci/test_deploy.sh` in AC-2 (smoke fails → `rolled_back` with `rollback=ok`; rollback whose smoke also fails → `failed` with `rollback=failed`), and the documentation states that it has not been reproduced on the VM, with the reason from US-CICD-004 (a flag that breaks the probe breaks the rollback too). The drill stays an optional operator exercise: a release that fails only itself, then a revert.
   - **Verification:** the `deploy-guards` job runs those cases and a mutation of `deploy.sh` (no rollback after `smoke_failed`) turns it red; the limit appears in `infra/deploy/README.md` next to the drill table.
+  - **Evidence status:** covered by `test_deploy.sh` (cases and mutations from AC-2); the limit is row 8 of the drill table in `infra/deploy/README.md`. Not reproduced on the VM, as decided.
 
-- [ ] **AC-5: Documentation, Verification and Phase Closing**
+- [x] **AC-5: Documentation, Verification and Phase Closing**
   - `infra/deploy/README.md` (the CD section: triggers, gate, exit codes, summary, smoke test, what to do on each red), `infra/ci/README.md`, `infra/runner/README.md`, `infra/README.md`, `.claude/CLAUDE.md` and `README.md` updated; the GitHub settings (environment, reviewers, branch protection) documented. `sudo ./scripts/provision/verify.sh` run on the VM and its result recorded. Phase summary in `.claude/context/summaries/phase-5-resume.md` (changes, files, rationale, next steps); plan updated (Epic 14 at 100%, Phase 5 at 8/8).
   - **Verification:** a reader can follow the documents to find why a deploy went red and to act on it; the summary lets a new session understand Phase 5 without rereading the code.
+  - **Evidence status:** CD section, "what to do on each red" and GitHub settings in `infra/deploy/README.md`; `infra/ci`, `infra/runner`, `infra/README.md`, `README.md` and `CLAUDE.md` updated; `summaries/phase-5-resume.md` written; plan at 31/31, Epic 14 at 100 %, Phase 5 at 8/8. `verify.sh` on the VM: see the phase summary (Findings and Known Gaps) for what failed first and how it was fixed.
 
 ---
 

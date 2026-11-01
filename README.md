@@ -101,6 +101,12 @@ networks, and usable only by `workflow_dispatch` / push-to-`main` workflows. See
 [`infra/runner/README.md`](infra/runner/README.md). The runner never touches Docker: it leaves a deploy request that the host
 validates and applies itself, with automatic rollback, see [`infra/deploy/README.md`](infra/deploy/README.md).
 
+### Continuous delivery
+
+A push to `main` with a green CI is deployed automatically (`.github/workflows/deploy.yml`): the workflow waits for the CI and
+the published images, asks the host through the runner, and the host applies the release, runs a smoke test over HTTPS and rolls
+back if it fails. See [`infra/deploy/README.md`](infra/deploy/README.md#continuous-delivery-us-cicd-005).
+
 The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
 
 ## Key principles
