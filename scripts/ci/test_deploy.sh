@@ -25,7 +25,11 @@ cat >"${WORK}/bin/docker" <<'FAKE'
 envtag="$(grep -E '^IMAGE_TAG=' "${APP_DIR}/.env" | tail -n1 | cut -d= -f2)"
 echo "${IMAGE_TAG:-} | env=${envtag} | $*" >>"${APP_DIR}/docker.log"
 case " $* " in
-  *" manifest inspect "*) [[ -z ${FAKE_MISSING_IMAGE:-} ]] || exit 1 ;;
+  *" manifest inspect "*)
+    echo "godebug=${GODEBUG:-}" >>"${APP_DIR}/docker.log"
+    [[ -z ${FAKE_MISSING_IMAGE:-} ]] || exit 1
+    n="$(cat "${APP_DIR}/.flaky_docker" 2>/dev/null || echo 0)"; echo $((n + 1)) >"${APP_DIR}/.flaky_docker"
+    ((n >= ${FAKE_FLAKY:-0})) || exit 1 ;;
   *" pull "*) [[ -z ${FAKE_FAIL_PULL:-} ]] || exit 1 ;;
   *" run "*) [[ -z ${FAKE_FAIL_MIGRATE:-} ]] || exit 1 ;;
   *" --remove-orphans"*) [[ $envtag != "${FAKE_BAD_UP_TAG:-none}" ]] || exit 1 ;;
@@ -38,6 +42,8 @@ envtag="$(grep -E '^IMAGE_TAG=' "${APP_DIR}/.env" | tail -n1 | cut -d= -f2)"
 echo "curl env=${envtag} | $*" >>"${APP_DIR}/docker.log"
 if [[ " $* " == *"/compare/"* ]]; then  # GitHub compare API: <base>...<head>; nested files[].status must be ignored
   [[ -z ${FAKE_API_DOWN:-} ]] || exit 22
+  n="$(cat "${APP_DIR}/.flaky_curl" 2>/dev/null || echo 0)"; echo $((n + 1)) >"${APP_DIR}/.flaky_curl"
+  ((n >= ${FAKE_FLAKY:-0})) || exit 22
   if [[ " $* " == *"...main?"* ]]; then st=${FAKE_MAIN_STATUS:-ahead}; else st=${FAKE_FWD_STATUS:-ahead}; fi
   printf '{"url":"x","status":"%s","files":[{"status":"modified"}]}\n' "$st"
   exit 0
@@ -71,7 +77,7 @@ STUB
 }
 
 run() { # args to deploy.sh; output in $OUT, exit code in $RC
-  OUT="$(PATH="${WORK}/bin:${PATH}" APP_DIR="$APP" DEPLOY_HEALTH_INTERVAL=0 DEPLOY_HEALTH_RETRIES=3 "$DEPLOY" "$@" 2>&1)"; RC=$?
+  OUT="$(PATH="${WORK}/bin:${PATH}" APP_DIR="$APP" DEPLOY_HEALTH_INTERVAL=0 DEPLOY_HEALTH_RETRIES=3 DEPLOY_NET_RETRY_DELAY=0 "$DEPLOY" "$@" 2>&1)"; RC=$?
 }
 status_of() { grep -E "^$1=" "${APP}/.deploy/outbox/status" 2>/dev/null | cut -d= -f2-; }
 env_tag() { grep -E '^IMAGE_TAG=' "${APP}/.env" | cut -d= -f2; }
@@ -230,6 +236,26 @@ new_app "$OLD" "$OLD"; FAKE_MISSING_IMAGE=1 run --tag "$GOOD"
 check "images: missing in the registry -> failed/images_missing, nothing pulled" bash -c "[[ $RC == 1 && '$(status_of reason)' == images_missing && '$(env_tag)' == $OLD ]] && ! grep -q ' pull \|backup' '${APP}/docker.log'"
 new_app "$OLD" "$OLD"; run --tag "$GOOD"
 check "images: all four services are checked" bash -c "[[ \$(grep -c 'manifest inspect' '${APP}/docker.log') == 4 ]] && grep -q 'ghcr.io/o/autoops/traefik:${GOOD}' '${APP}/docker.log'"
+
+# network resilience: the read-only checks (GitHub API, registry) are retried; a persistent failure still fails closed
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; FAKE_FLAKY=3 run --request-file "${APP}/req"
+check "retry: the GitHub API failing 3 times then answering -> succeeded" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded ]]"
+check "retry: the retries are logged" bash -c "grep -q 'network check failed (attempt 1/4)' <<<'$OUT'"
+new_app "$OLD" "$OLD"; FAKE_FLAKY=3 run --tag "$GOOD"
+check "retry: the registry failing 3 times then answering -> succeeded" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded ]]"
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; FAKE_API_DOWN=1 run --request-file "${APP}/req"
+check "retry: API down for good -> exactly 4 attempts, then provenance_unavailable" bash -c "[[ '$(status_of reason)' == provenance_unavailable && \$(grep -c 'compare/' '${APP}/docker.log') == 4 ]]"
+new_app "$OLD" "$OLD"; FAKE_MISSING_IMAGE=1 run --tag "$GOOD"
+check "retry: image missing for good -> 4 attempts on the first service, then images_missing" bash -c "[[ '$(status_of reason)' == images_missing && \$(grep -c 'manifest inspect' '${APP}/docker.log') == 4 ]]"
+new_app "$OLD" "$OLD"; DEPLOY_NET_RETRIES=1 FAKE_FLAKY=1 run --tag "$GOOD"
+check "retry: DEPLOY_NET_RETRIES=1 means a single attempt" bash -c "[[ '$(status_of reason)' == images_missing ]]"
+new_app "$OLD" "$OLD"; DEPLOY_NET_RETRIES=x run --tag "$GOOD"
+check "retry: a non-numeric DEPLOY_NET_RETRIES is rejected (exit 2)" eq "$RC" 2
+# opt-in classic key exchange (networks that cut the post-quantum ClientHello)
+new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; run --request-file "${APP}/req"
+check "classic kex: off by default (no --curves, no GODEBUG)" bash -c "! grep -q -- '--curves' '${APP}/docker.log' && ! grep -q 'godebug=.*tlsmlkem' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; echo 'DEPLOY_TLS_CLASSIC_KEX=1' >>"${APP}/.env"; printf 'tag=%s\nrun_id=3\n' "$GOOD" >"${APP}/req"; run --request-file "${APP}/req"
+check "classic kex: DEPLOY_TLS_CLASSIC_KEX=1 -> curl --curves X25519:secp256r1 and docker GODEBUG=tlsmlkem=0" bash -c "[[ $RC == 0 ]] && grep -q -- '--curves X25519:secp256r1' '${APP}/docker.log' && grep -q 'godebug=tlsmlkem=0' '${APP}/docker.log'"
 
 echo "passed=${PASS} failed=${FAIL}"
 [[ $FAIL -eq 0 ]]

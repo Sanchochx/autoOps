@@ -121,6 +121,27 @@ is in [`../backup/README.md`](../backup/README.md#restore):
 ./scripts/ops/restore_postgres.sh autoops_db_<timestamp>.dump
 ```
 
+### Flaky TLS: random `images_missing` or `provenance_unavailable`
+
+Both reasons come from read-only network checks of the host (the GitHub compare API with `curl`, `docker manifest inspect`
+against GHCR). `deploy.sh` retries each of them (`DEPLOY_NET_RETRIES`, default 4, `DEPLOY_NET_RETRY_DELAY`, default 2 s), so a
+one-off hiccup does not fail a deploy, and they fail closed when the failure persists.
+
+If they fail often although the image exists and the repository is public, measure the link before touching the code:
+
+```bash
+for i in 1 2 3 4 5 6 7 8 9 10; do curl -sS -m 12 -o /dev/null https://api.github.com/ || echo failed; done
+for i in 1 2 3 4 5 6 7 8 9 10; do curl --curves X25519 -sS -m 12 -o /dev/null https://api.github.com/ || echo failed; done
+```
+
+If the first loop fails (`unexpected eof`, `connection reset`) and the second does not, something in the path (a router, the
+hypervisor's NAT, a firewall) drops the larger ClientHello that OpenSSL 3.5 and Go 1.24+ send for the post-quantum key
+exchange. Set `DEPLOY_TLS_CLASSIC_KEX=1` in the host `.env`: the checks then offer only classic curves
+(`curl --curves X25519:secp256r1`, `GODEBUG=tlsmlkem=0` for the Docker CLI). It is off by default because it gives up the
+post-quantum hybrid for those requests; the better fix is the network. The Docker daemon (which does the `pull`) was not
+affected in the case that motivated this (VirtualBox VM, 10 of 10 pulls fine against 3 of 10 failing `manifest inspect`), and
+`tcp_mtu_probing` and IPv4-only made no difference there.
+
 ### The schema limit
 
 A rollback restores **images only**. Migrations are not reverted, so the previous release must run on the migrated
