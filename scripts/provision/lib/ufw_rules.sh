@@ -33,10 +33,10 @@ validate_ufw_inputs() {
   local port
   if [[ -n ${ADMIN_CIDR:-} ]]; then
     python3 -I -c 'import ipaddress,sys; ipaddress.ip_network(sys.argv[1], strict=False)' "$ADMIN_CIDR" 2>/dev/null \
-      || die "ADMIN_CIDR inválido: '${ADMIN_CIDR}' (usa una IP o CIDR)."
+      || die "Invalid ADMIN_CIDR: '${ADMIN_CIDR}' (use an IP or CIDR)."
   fi
   for port in $(resolve_web_ports); do
-    [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Puerto web inválido (UFW_WEB_PORTS o PROXY_*_PORT): '${port}'."
+    [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Invalid web port (UFW_WEB_PORTS or PROXY_*_PORT): '${port}'."
   done
 }
 

@@ -34,8 +34,8 @@ deploy_restrict(){
 }
 no_pending_rb()  { ! command -v systemctl >/dev/null || ! systemctl is-active --quiet autoops-ssh-rollback.timer; }
 
-check "sshd valida su configuración (sshd -t)" sshd_valid
-check "el servicio ssh está activo" ssh_active
+check "sshd validates its configuration (sshd -t)" sshd_valid
+check "the ssh service is active" ssh_active
 check "PasswordAuthentication no" sshd_is passwordauthentication no
 check "KbdInteractiveAuthentication no" sshd_is kbdinteractiveauthentication no
 check "PubkeyAuthentication yes" sshd_is pubkeyauthentication yes
@@ -52,19 +52,19 @@ check "banner configurado" sshd_is banner /etc/ssh/autoops-banner
 # shellcheck disable=SC2088 # literal text of the description, not a path
 check "~/.ssh de ${ADMIN_USER} es 700" admin_dir
 check "authorized_keys de ${ADMIN_USER} es 600" admin_auth
-check "${ADMIN_USER} tiene una llave ed25519" admin_has_key
-check "authorized_keys de ${ADMIN_USER} solo contiene llaves ed25519" admin_only_ed
-check "sin rollback de SSH pendiente (cambio confirmado)" no_pending_rb
+check "${ADMIN_USER} has an ed25519 key" admin_has_key
+check "authorized_keys of ${ADMIN_USER} only contains ed25519 keys" admin_only_ed
+check "no SSH rollback pending (change confirmed)" no_pending_rb
 
 if [[ -n $DEPLOY_SSH_PUBKEY_FILE ]]; then
   check "AllowUsers = ${ADMIN_USER} ${DEPLOY_USER}" deploy_in_allow
-  check "entrypoint de despliegue root:root 755" entrypoint_ok
-  check "${DEPLOY_USER} sin sudo ni docker" deploy_no_priv
-  check "${DEPLOY_USER} sin contraseña (bloqueada)" deploy_locked
-  check "llave de despliegue con restrict, from= y command=" deploy_restrict
+  check "deploy entrypoint root:root 755" entrypoint_ok
+  check "${DEPLOY_USER} has no sudo or docker" deploy_no_priv
+  check "${DEPLOY_USER} has no password (locked)" deploy_locked
+  check "deploy key with restrict, from= and command=" deploy_restrict
 else
   check "AllowUsers = ${ADMIN_USER}" sshd_is allowusers "$ADMIN_USER"
-  log_info "Sin DEPLOY_SSH_PUBKEY_FILE: se omiten los controles de la llave de despliegue."
+  log_info "No DEPLOY_SSH_PUBKEY_FILE: skipping the deploy key checks."
 fi
 
 check_finish

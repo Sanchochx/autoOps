@@ -59,24 +59,24 @@ proxy_publishes_web() { [[ $PROXY_PUBLISHED == "$WEB_PORTS" ]]; }
 legacy_closed()    { [[ -z $LEGACY_PUBLIC ]]; }
 
 check "UFW activo" ufw_active
-check "UFW habilitado en el arranque" ufw_boot
-check "bloque DOCKER-USER persistido en ${AFTER_RULES} = esperado" block_persisted
+check "UFW enabled at boot" ufw_boot
+check "DOCKER-USER block persisted in ${AFTER_RULES} = expected" block_persisted
 check "FORWARD salta a DOCKER-USER" forward_jumps
-check "DOCKER-USER es la primera regla de FORWARD" user_first
+check "DOCKER-USER is the first FORWARD rule" user_first
 check "reglas vivas de DOCKER-USER = esperadas" live_matches
-check "descarte final por interfaz externa (${IFACES})" no_ext_leak
-check "Docker conserva la gestión de iptables" iptables_managed
+check "final drop per external interface (${IFACES})" no_ext_leak
+check "Docker keeps managing iptables" iptables_managed
 check "docker ps responde" docker_answers
-check "ningún contenedor distinto de ${PROXY_SERVICE} publica puertos en el host" no_other_publish
-check "todo puerto publicado está autorizado en DOCKER-USER" all_publish_allowed
-check "PORT / FRONTEND_PORT no figuran como públicos" legacy_closed
+check "no container other than ${PROXY_SERVICE} publishes ports on the host" no_other_publish
+check "every published port is authorized in DOCKER-USER" all_publish_allowed
+check "PORT / FRONTEND_PORT are not listed as public" legacy_closed
 if [[ $STACK_REQUIRED == 1 ]]; then
-  check "${PROXY_SERVICE} publica exactamente los puertos web (${WEB_PORTS})" proxy_publishes_web
+  check "${PROXY_SERVICE} publishes exactly the web ports (${WEB_PORTS})" proxy_publishes_web
 fi
-[[ -z $LEAKS ]] || log_warn "Puertos publicados por servicios ajenos al proxy: ${LEAKS}"
-[[ -z $UNLISTED ]] || log_warn "Puertos publicados sin autorización en DOCKER-USER: ${UNLISTED}"
-[[ -z $LEGACY_PUBLIC ]] || log_warn "Puertos legados aún públicos: ${LEGACY_PUBLIC}"
+[[ -z $LEAKS ]] || log_warn "Ports published by services other than the proxy: ${LEAKS}"
+[[ -z $UNLISTED ]] || log_warn "Published ports without authorization in DOCKER-USER: ${UNLISTED}"
+[[ -z $LEGACY_PUBLIC ]] || log_warn "Legacy ports still public: ${LEGACY_PUBLIC}"
 
-log_info "Interfaces externas: ${IFACES}. Puertos públicos: ${PORTS:-ninguno}."
-log_info "Persistencia tras reinicio: reinicia la VM y repite este check; el escaneo nmap externo es manual (README)."
+log_info "External interfaces: ${IFACES}. Public ports: ${PORTS:-none}."
+log_info "Persistence across reboot: reboot the VM and repeat this check; the external nmap scan is manual (README)."
 check_finish

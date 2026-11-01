@@ -29,22 +29,22 @@ only_service_user() { local m; m="$(docker_members)"; [[ -z $m || $m == "$SERVIC
 service_in_group()  { in_group "$SERVICE_USER" docker; }
 
 check "paquetes de Docker instalados (engine, cli, containerd, buildx, compose)" pkgs_installed
-check "repositorio oficial con Signed-By y huella de llave verificada" repo_signed
+check "official repository with Signed-By and verified key fingerprint" repo_signed
 check "docker version (cliente y servidor)" docker version
 check "docker compose version" docker compose version
 check "servicio docker activo y habilitado" svc_ok docker
 check "servicio containerd activo y habilitado" svc_ok containerd
-check "daemon.json coincide con infra/docker/daemon.json" daemon_matches
+check "daemon.json matches infra/docker/daemon.json" daemon_matches
 check "no-new-privileges = true" daemon_key '.["no-new-privileges"] == true'
 check "userland-proxy = false" daemon_key '.["userland-proxy"] == false'
 check "log-driver json-file con max-size y max-file" daemon_key '.["log-driver"] == "json-file" and (.["log-opts"]["max-size"] != null) and (.["log-opts"]["max-file"] != null)'
 check "docker info: Logging Driver = json-file" info_is '{{.LoggingDriver}}' json-file
 check "docker info: Live Restore habilitado" info_is '{{.LiveRestoreEnabled}}' true
-check "iptables gestionado por Docker (no desactivado)" iptables_managed
-check "sin 'hosts' en daemon.json (sin exposición TCP)" no_hosts_key
-check "el demonio no escucha en 2375/2376" no_tcp_daemon
+check "iptables managed by Docker (not disabled)" iptables_managed
+check "no 'hosts' in daemon.json (no TCP exposure)" no_hosts_key
+check "the daemon does not listen on 2375/2376" no_tcp_daemon
 check "socket /var/run/docker.sock root:docker 660" socket_perms
-check "${SERVICE_USER} pertenece al grupo docker" service_in_group
-check "el grupo docker solo contiene a ${SERVICE_USER}" only_service_user
+check "${SERVICE_USER} is in the docker group" service_in_group
+check "the docker group only contains ${SERVICE_USER}" only_service_user
 
 check_finish

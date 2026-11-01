@@ -35,20 +35,20 @@ declare -A PIN=(
 )
 PACKAGES=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
 
-[[ -n $DOCKER_APT_SUITE ]] || die "No se pudo determinar la suite; define DOCKER_APT_SUITE."
-[[ $DOCKER_GPG_FINGERPRINT =~ ^[0-9A-Fa-f]{40}$ ]] || die "DOCKER_GPG_FINGERPRINT inválida (40 hex)."
+[[ -n $DOCKER_APT_SUITE ]] || die "Could not determine the suite; set DOCKER_APT_SUITE."
+[[ $DOCKER_GPG_FINGERPRINT =~ ^[0-9A-Fa-f]{40}$ ]] || die "Invalid DOCKER_GPG_FINGERPRINT (40 hex characters)."
 [[ $(. /etc/os-release && echo "$ID") == ubuntu ]] || die "Este script soporta Ubuntu (repositorio ${DOCKER_URL})."
-id "$SERVICE_USER" >/dev/null 2>&1 || die "El usuario ${SERVICE_USER} no existe (ejecuta antes 10_users.sh)."
-jq empty "$DAEMON_SRC" || die "${DAEMON_SRC} no es JSON válido."
+id "$SERVICE_USER" >/dev/null 2>&1 || die "User ${SERVICE_USER} does not exist (run 10_users.sh first)."
+jq empty "$DAEMON_SRC" || die "${DAEMON_SRC} is not valid JSON."
 if jq -e 'has("hosts") or (.iptables == false)' "$DAEMON_SRC" >/dev/null; then
-  die "daemon.json no debe definir 'hosts' (sin exposición TCP) ni desactivar iptables."
+  die "daemon.json must not define 'hosts' (no TCP exposure) nor disable iptables."
 fi
 has_systemd() { [[ -d /run/systemd/system ]]; }
 export DEBIAN_FRONTEND=noninteractive
 
 # Packages that conflict with docker-ce: not removed automatically (they may hold containers/data).
 for conflict in docker.io docker-doc docker-compose podman-docker; do
-  ! dpkg -s "$conflict" >/dev/null 2>&1 || die "Está instalado '${conflict}', que choca con docker-ce. Retíralo manualmente (sudo apt-get remove ${conflict}) y reintenta."
+  ! dpkg -s "$conflict" >/dev/null 2>&1 || die "'${conflict}' is installed and conflicts with docker-ce. Remove it manually (sudo apt-get remove ${conflict}) and retry."
 done
 
 # --- AC-1: official repository with verified key ----------------------------------
@@ -59,9 +59,9 @@ if [[ ! -f $KEYRING ]] || [[ "$(key_fpr "$KEYRING")" != "${DOCKER_GPG_FINGERPRIN
   trap 'rm -f "$tmp"' EXIT
   curl -fsSL "${DOCKER_URL}/gpg" -o "$tmp"
   [[ "$(key_fpr "$tmp")" == "${DOCKER_GPG_FINGERPRINT^^}" ]] \
-    || die "La huella de la llave descargada no coincide con DOCKER_GPG_FINGERPRINT: no se instala."
+    || die "The fingerprint of the downloaded key does not match DOCKER_GPG_FINGERPRINT: not installing."
   install -m 644 -o root -g root "$tmp" "$KEYRING"
-  log_change "instalada y verificada la llave GPG de Docker en ${KEYRING}"
+  log_change "installed and verified the Docker GPG key in ${KEYRING}"
 fi
 
 arch="$(dpkg --print-architecture)"
@@ -74,7 +74,7 @@ Signed-By: ${KEYRING}"
 chmod 644 "$SOURCES"
 policy="$(apt-cache policy docker-ce 2>/dev/null || true)"
 if ((FILE_CHANGED)) || [[ $policy != *download.docker.com* ]]; then
-  apt-get update -qq || { rm -f "$SOURCES"; die "apt update falló con la suite '${DOCKER_APT_SUITE}'; ¿existe en ${DOCKER_URL}/dists/? (usa DOCKER_APT_SUITE)."; }
+  apt-get update -qq || { rm -f "$SOURCES"; die "apt update failed with suite '${DOCKER_APT_SUITE}'; does it exist in ${DOCKER_URL}/dists/? (set DOCKER_APT_SUITE)."; }
 fi
 
 docker_preinstalled=0
@@ -111,7 +111,7 @@ if ((DAEMON_CHANGED)); then
   if ! dockerd --validate --config-file="$DAEMON_DST" >/dev/null 2>&1; then
     dockerd --validate --config-file="$DAEMON_DST" >&2 || true
     if [[ -f ${DAEMON_DST}.autoops-prev ]]; then mv -f "${DAEMON_DST}.autoops-prev" "$DAEMON_DST"; else rm -f "$DAEMON_DST"; fi
-    die "daemon.json no valida con 'dockerd --validate'; se restauró el anterior."
+    die "daemon.json does not pass 'dockerd --validate'; the previous one was restored."
   fi
   rm -f "${DAEMON_DST}.autoops-prev"
 fi
@@ -122,20 +122,20 @@ if has_systemd; then
     log_change "docker iniciado"
   elif ((DAEMON_CHANGED && docker_preinstalled)); then
     systemctl restart docker
-    log_change "docker reiniciado con el nuevo daemon.json (los contenedores sin restart policy se detienen)"
+    log_change "docker restarted with the new daemon.json (containers without a restart policy are stopped)"
   fi
 fi
 
 # --- AC-3: socket access (docker group = root) -----------------------------------------------
 getent group docker >/dev/null || groupadd --system docker
-in_group "$SERVICE_USER" docker || { usermod -aG docker "$SERVICE_USER"; log_change "${SERVICE_USER} añadido al grupo docker"; }
+in_group "$SERVICE_USER" docker || { usermod -aG docker "$SERVICE_USER"; log_change "${SERVICE_USER} added to the docker group"; }
 for member in $(getent group docker | cut -d: -f4 | tr ',' ' '); do
   if [[ $member != "$SERVICE_USER" ]]; then
     gpasswd --delete "$member" docker >/dev/null
-    log_change "${member} retirado del grupo docker (usa sudo docker)"
+    log_change "${member} removed from the docker group (use sudo docker)"
   fi
 done
 
 docker version --format 'Docker Engine {{.Server.Version}}'
 docker compose version
-log_info "60_docker.sh finalizado."
+log_info "60_docker.sh finished."

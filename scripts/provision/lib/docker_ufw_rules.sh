@@ -17,14 +17,14 @@ resolve_public_ports() {
   local env_file="${APP_ENV_FILE:-${APP_DIR:-/opt/autoops}/.env}" ports port legacy key
   ports="${DOCKER_PUBLIC_PORTS:-} $(resolve_web_ports)"
   for port in $ports; do
-    [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Puerto público inválido: '${port}'."
+    [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Invalid public port: '${port}'."
   done
   # shellcheck disable=SC2086
   ports="$(printf '%s\n' $ports | sort -nu | paste -sd' ')"
   for key in PORT FRONTEND_PORT; do
     legacy="$(env_value "$env_file" "$key")"
     [[ -n $legacy && " ${ports} " == *" ${legacy} "* ]] \
-      && log_warn "El puerto ${legacy} (${key}) sigue como público; Traefik es la única entrada. Quítalo de DOCKER_PUBLIC_PORTS/UFW_WEB_PORTS."
+      && log_warn "Port ${legacy} (${key}) is still public; Traefik is the only entry point. Remove it from DOCKER_PUBLIC_PORTS/UFW_WEB_PORTS."
   done
   printf '%s\n' "$ports"
 }
@@ -33,11 +33,11 @@ resolve_public_ports() {
 resolve_ext_ifaces() {
   local ifaces="${DOCKER_EXT_IFACES:-}" iface
   [[ -n $ifaces ]] || ifaces="$(ip -o route show default | awk '{for (i = 1; i < NF; i++) if ($i == "dev") print $(i + 1)}' | sort -u | paste -sd' ')"
-  [[ -n $ifaces ]] || die "Sin ruta por defecto: define DOCKER_EXT_IFACES (ej. \"enp0s3\")."
+  [[ -n $ifaces ]] || die "No default route: set DOCKER_EXT_IFACES (e.g. \"enp0s3\")."
   for iface in $ifaces; do
-    [[ $iface =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || die "Interfaz inválida: '${iface}'."
-    [[ -d /sys/class/net/$iface ]] || die "La interfaz '${iface}' no existe en este host."
-    case $iface in lo | docker0 | br-* | veth*) die "'${iface}' no es una interfaz externa." ;; esac
+    [[ $iface =~ ^[A-Za-z0-9_.-]{1,15}$ ]] || die "Invalid interface: '${iface}'."
+    [[ -d /sys/class/net/$iface ]] || die "Interface '${iface}' does not exist on this host."
+    case $iface in lo | docker0 | br-* | veth*) die "'${iface}' is not an external interface." ;; esac
   done
   printf '%s' "$ifaces"
 }
@@ -75,7 +75,7 @@ insert_block() {
     skip && index($0, e) == 1 { skip = 0 }
     END {
       for (last = n; last > 0 && lines[last] != "COMMIT"; last--) ;
-      if (!last) { print "after.rules sin COMMIT final" > "/dev/stderr"; exit 1 }
+      if (!last) { print "after.rules has no final COMMIT" > "/dev/stderr"; exit 1 }
       for (i = 1; i < last; i++) print lines[i]
       print ENVIRON["BLOCK"]
       for (i = last; i <= n; i++) print lines[i]

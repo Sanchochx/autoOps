@@ -35,7 +35,7 @@ while (($#)); do
   case $1 in
     --confirm-ssh) CONFIRM_SSH=1 ;;
     --env-file)
-      [[ $# -ge 2 ]] || die "--env-file requiere una ruta."
+      [[ $# -ge 2 ]] || die "--env-file requires a path."
       ENV_FILE=$2
       shift
       ;;
@@ -52,21 +52,21 @@ require_root
 os_id="$(. /etc/os-release 2>/dev/null && echo "${ID:-}")"
 os_version="$(. /etc/os-release 2>/dev/null && echo "${VERSION_ID:-}")"
 [[ $os_id == ubuntu && $os_version == 26.04 ]] \
-  || die "Sistema no soportado: '${os_id:-?} ${os_version:-?}'. Se requiere Ubuntu 26.04."
-[[ -d /run/systemd/system ]] || die "systemd no está activo en este sistema."
+  || die "Unsupported system: '${os_id:-?} ${os_version:-?}'. Ubuntu 26.04 is required."
+[[ -d /run/systemd/system ]] || die "systemd is not active on this system."
 
 missing=()
 for name in "${REQUIRED_VARS[@]}"; do
   [[ -n "${!name:-}" ]] || missing+=("$name")
 done
-((${#missing[@]} == 0)) || die "Faltan variables obligatorias: ${missing[*]}. Ver la cabecera de ${BASH_SOURCE[0]}."
+((${#missing[@]} == 0)) || die "Missing required variables: ${missing[*]}. See the header of ${BASH_SOURCE[0]}."
 
 APP_DIR="${APP_DIR:-/opt/autoops}"
-[[ -r $ADMIN_SSH_PUBKEY_FILE ]] || die "ADMIN_SSH_PUBKEY_FILE no es legible: '${ADMIN_SSH_PUBKEY_FILE}'."
-[[ -f ${APP_DIR}/docker-compose.yml ]] || die "No existe ${APP_DIR}/docker-compose.yml (despliega el repositorio en APP_DIR)."
-[[ -f ${APP_DIR}/.env ]] || die "No existe ${APP_DIR}/.env (cp .env.example .env y complétalo)."
+[[ -r $ADMIN_SSH_PUBKEY_FILE ]] || die "ADMIN_SSH_PUBKEY_FILE is not readable: '${ADMIN_SSH_PUBKEY_FILE}'."
+[[ -f ${APP_DIR}/docker-compose.yml ]] || die "${APP_DIR}/docker-compose.yml does not exist (deploy the repository into APP_DIR)."
+[[ -f ${APP_DIR}/.env ]] || die "${APP_DIR}/.env does not exist (cp .env.example .env and fill it in)."
 for step in "${STEPS[@]}"; do
-  [[ -f ${HERE}/${step}.sh ]] || die "Falta el script del paso: ${HERE}/${step}.sh."
+  [[ -f ${HERE}/${step}.sh ]] || die "Missing step script: ${HERE}/${step}.sh."
 done
 
 # Values the steps share: exported so every child sees the same configuration.
@@ -85,22 +85,22 @@ for step in "${STEPS[@]}"; do
   log_info "=== [${index}/${total}] ${step} ==="
   # pipefail makes a failing step fail the pipeline even though tee succeeds.
   if ! bash "${HERE}/${step}.sh" 2>&1 | tee -a "$RUN_LOG"; then
-    die "Falló el paso ${step}. Corrige la causa y vuelve a ejecutar bootstrap.sh (los pasos son idempotentes)."
+    die "Step ${step} failed. Fix the cause and run bootstrap.sh again (the steps are idempotent)."
   fi
 done
 changes="$(grep -c '^\[CAMBIO\]' "$RUN_LOG" || true)"
 
 if ((CONFIRM_SSH)); then
-  bash "${HERE}/20_ssh.sh" --confirm || die "No se pudo confirmar el cambio de SSH."
+  bash "${HERE}/20_ssh.sh" --confirm || die "Could not confirm the SSH change."
 elif systemctl is-active --quiet autoops-ssh-rollback.timer; then
-  log_warn "Rollback de SSH ARMADO. Si tu llave funciona: sudo ADMIN_USER=${ADMIN_USER} ${HERE}/20_ssh.sh --confirm"
+  log_warn "SSH rollback ARMED. If your key works: sudo ADMIN_USER=${ADMIN_USER} ${HERE}/20_ssh.sh --confirm"
 else
-  log_info "No hay rollback de SSH pendiente."
+  log_info "No SSH rollback pending."
 fi
 
 if ((changes == 0)); then
-  log_info "Sin cambios: el sistema ya estaba aprovisionado (${total} pasos)."
+  log_info "No changes: the system was already provisioned (${total} steps)."
 else
-  log_info "${changes} cambio(s) aplicado(s) en ${total} pasos."
+  log_info "${changes} change(s) applied in ${total} steps."
 fi
-log_info "bootstrap.sh finalizado. Siguiente: ${HERE}/verify.sh"
+log_info "bootstrap.sh finished. Next: ${HERE}/verify.sh"

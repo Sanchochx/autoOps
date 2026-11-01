@@ -55,30 +55,30 @@ runner_cannot_write_outbox() { runner_identity && ! in_runner sh -c "echo x > /d
 runner_reads_outbox() { in_runner ls /deploy/outbox; }
 runner_cannot_see_state() { runner_identity && ! in_runner test -e "${STATE_DIR}/current" && ! in_runner test -e "$STATE_DIR"; }
 
-check "autoops-deploy.service y .path instaladas y coinciden con las plantillas" both_match
+check "autoops-deploy.service and .path installed and match the templates" both_match
 check "autoops-deploy pasa systemd-analyze verify" verifies
 check "autoops-deploy.service: Type=oneshot, corre como ${SERVICE_USER}" bash -c "[[ \$(systemctl show autoops-deploy.service -p Type --value) == oneshot && \$(systemctl show autoops-deploy.service -p User --value) == '${SERVICE_USER}' ]]"
-check "autoops-deploy.service sin sección [Install] (solo la arranca el .path)" no_install
-check "autoops-deploy.service sin secretos" no_secrets
-check "autoops-deploy.service con sandboxing (NoNewPrivileges, ProtectHome, PrivateTmp, ProtectSystem=full)" sandbox_on
-check "autoops-deploy.service puede escribir solo en APP_DIR, backups, inbox y outbox (ReadWritePaths)" rw_paths
+check "autoops-deploy.service has no [Install] section (only the .path starts it)" no_install
+check "autoops-deploy.service has no secrets" no_secrets
+check "autoops-deploy.service is sandboxed (NoNewPrivileges, ProtectHome, PrivateTmp, ProtectSystem=full)" sandbox_on
+check "autoops-deploy.service can only write to APP_DIR, backups, inbox and outbox (ReadWritePaths)" rw_paths
 check "${SERVICE_USER} puede ejecutar scripts/ops/deploy.sh" service_exec
 check "autoops-deploy.path vigila ${INBOX}/request" watches_inbox
 check "autoops-deploy.path habilitada" path_enabled
 check "autoops-deploy.path activa" path_active
 check "${STATE_DIR} es ${SERVICE_USER}:${SERVICE_USER} 0700" state_perms
-check "inbox es UID ${DEPLOY_INBOX_UID}:${SERVICE_USER} 0730 (el runner escribe, el resto no lista)" inbox_perms
-check "outbox es ${SERVICE_USER}:${SERVICE_USER} 0755 (solo el servicio escribe)" outbox_perms
-check "un tercero no puede listar el inbox" runner_cannot_list_inbox_as_other
+check "inbox is UID ${DEPLOY_INBOX_UID}:${SERVICE_USER} 0730 (the runner writes, others cannot list)" inbox_perms
+check "outbox is ${SERVICE_USER}:${SERVICE_USER} 0755 (only the service writes)" outbox_perms
+check "a third party cannot list the inbox" runner_cannot_list_inbox_as_other
 if [[ -n $RUNNER_CID ]]; then
-  check "el contenedor del runner corre con el UID ${DEPLOY_INBOX_UID}" runner_identity
-  check "el runner (UID ${DEPLOY_INBOX_UID}) puede dejar una petición en el inbox" runner_writes_inbox
-  check "${SERVICE_USER} puede leer y borrar lo que dejó el runner" service_reads_and_removes
-  check "el runner puede leer el outbox" runner_reads_outbox
-  check "el runner no puede escribir en el outbox" runner_cannot_write_outbox
-  check "el estado del deploy no es visible desde el runner" runner_cannot_see_state
+  check "the runner container runs with UID ${DEPLOY_INBOX_UID}" runner_identity
+  check "the runner (UID ${DEPLOY_INBOX_UID}) can leave a request in the inbox" runner_writes_inbox
+  check "${SERVICE_USER} can read and delete what the runner left" service_reads_and_removes
+  check "the runner can read the outbox" runner_reads_outbox
+  check "the runner cannot write to the outbox" runner_cannot_write_outbox
+  check "the deploy state is not visible from the runner" runner_cannot_see_state
 else
-  log_info "El contenedor del runner no está en ejecución: se omiten las pruebas funcionales desde el runner."
+  log_info "The runner container is not running: skipping the functional tests from the runner."
 fi
 rm -f "${INBOX}/.probe" 2>/dev/null || true
 

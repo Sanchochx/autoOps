@@ -86,9 +86,9 @@ sudo cp tls/ca/ca.crt /usr/local/share/ca-certificates/autoops-local-ca.crt && s
 # Firefox keeps its own store; see infra/traefik/README.md ("Trusting the local CA").
 ```
 
-Open `https://autoops.local`: create a ticket and watch the agents in the console. It goes **Abierto → Investigando →
-Escalado**, with the Investigator's analysis in the table (persisted in the database, so it survives a reload).
-If the AI call fails, the ticket returns to **Abierto** and the console shows the error; check
+Open `https://autoops.local`: create a ticket and watch the agents in the console. It goes **Open → Investigating →
+Escalated**, with the Investigator's analysis in the table (persisted in the database, so it survives a reload).
+If the AI call fails, the ticket returns to **Open** and the console shows the error; check
 `docker compose logs api-gateway`.
 
 ### Verify it works

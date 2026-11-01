@@ -43,27 +43,27 @@ all_healthy() {
 restart_policy() { local id; for id in $(sudo -u "$SERVICE_USER" bash -c "cd '${APP_DIR}' && docker compose ps -q"); do [[ "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$id")" == unless-stopped ]] || return 1; done; }
 live_restore()   { [[ "$(docker info --format '{{.LiveRestoreEnabled}}')" == true ]]; }
 
-check "autoops.service instalada y coincide con la plantilla" unit_matches autoops
-check "autoops-migrate.service instalada y coincide con la plantilla" unit_matches autoops-migrate
+check "autoops.service installed and matches the template" unit_matches autoops
+check "autoops-migrate.service installed and matches the template" unit_matches autoops-migrate
 check "autoops.service pasa systemd-analyze verify" unit_verifies "$UNIT"
 check "autoops-migrate.service pasa systemd-analyze verify" unit_verifies "$MIGRATE"
 check "Type=oneshot con RemainAfterExit=yes" bash -c "[[ \$(systemctl show autoops -p Type --value) == oneshot && \$(systemctl show autoops -p RemainAfterExit --value) == yes ]]"
 check "corre como ${SERVICE_USER}" unit_prop autoops User "$SERVICE_USER"
-check "ExecStop sin -v (los datos persisten)" no_volume_wipe
-check "sin secretos en las unidades" no_secrets
-check "autoops.service valida secretos por defecto antes de arrancar (ExecStartPre)" prestart_guard
-check "${SERVICE_USER} puede ejecutar scripts/ops/validate_env.sh (propiedad y modos del árbol)" service_can_exec
+check "ExecStop without -v (data persists)" no_volume_wipe
+check "no secrets in the units" no_secrets
+check "autoops.service validates secrets by default before starting (ExecStartPre)" prestart_guard
+check "${SERVICE_USER} can run scripts/ops/validate_env.sh (tree ownership and modes)" service_can_exec
 check "${APP_DIR}/.env es ${SERVICE_USER}:${SERVICE_USER} 0600" env_file_ok
 check "sandboxing activo (NoNewPrivileges, ProtectHome, PrivateTmp, ProtectSystem=full)" sandbox_on
-check "autoops.service no ejecuta migraciones" migrate_is_manual
-check "autoops-migrate.service sin sección [Install]" no_install
+check "autoops.service does not run migrations" migrate_is_manual
+check "autoops-migrate.service has no [Install] section" no_install
 check "autoops-migrate.service nunca habilitada" never_enabled
-check "autoops.service habilitada al arranque" enabled
+check "autoops.service enabled at boot" enabled
 check "Docker: live-restore habilitado" live_restore
 if [[ $STACK_REQUIRED == 1 ]]; then
   check "autoops.service activa" active
-  check "todos los servicios del stack en healthy/running" all_healthy
-  check "restart policy unless-stopped en todos los contenedores" restart_policy
+  check "all stack services healthy/running" all_healthy
+  check "restart policy unless-stopped on all containers" restart_policy
 fi
 
 check_finish

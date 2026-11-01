@@ -12,7 +12,7 @@ if [[ -f $STATE_DIR/10-autoops.conf.prev ]]; then
 elif [[ -f $STATE_DIR/10-autoops.conf.absent ]]; then
   rm -f "$CONF"
 else
-  echo "autoops-ssh-rollback: sin estado previo guardado." >&2
+  echo "autoops-ssh-rollback: no previous state saved." >&2
   exit 1
 fi
 
@@ -20,5 +20,5 @@ fi
 if systemctl is-active --quiet ssh; then
   systemctl reload ssh
 fi
-logger -t autoops-ssh-rollback "configuración SSH revertida al estado previo"
-echo "autoops-ssh-rollback: configuración SSH revertida."
+logger -t autoops-ssh-rollback "SSH configuration reverted to the previous state"
+echo "autoops-ssh-rollback: SSH configuration reverted."

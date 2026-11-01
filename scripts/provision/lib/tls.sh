@@ -24,7 +24,7 @@ tls_desired_sans() {
     elif [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$ ]]; then
       echo "DNS:${name,,}"
     else
-      die "Nombre de certificado inválido: '${name}' (se admiten nombres DNS e IPv4; IPv6 no)."
+      die "Invalid certificate name: '${name}' (DNS names and IPv4 are supported; IPv6 is not)."
     fi
   done | sort -u
 }
@@ -46,12 +46,12 @@ tls_pubkey_matches() {
 tls_ensure_ca() {
   local ca="$1/ca"
   if [[ -f $ca/ca.key && -f $ca/ca.crt ]]; then
-    tls_pubkey_matches "$ca/ca.crt" "$ca/ca.key" || die "${ca}: ca.key y ca.crt no son un par. Revisa o elimina el directorio ca/ a mano."
+    tls_pubkey_matches "$ca/ca.crt" "$ca/ca.key" || die "${ca}: ca.key and ca.crt are not a pair. Review or remove the ca/ directory by hand."
     openssl x509 -in "$ca/ca.crt" -noout -checkend $((90 * 86400)) >/dev/null \
-      || log_warn "La CA local de ${ca} caduca en menos de 90 días; regenerarla obliga a reimportarla en los navegadores."
+      || log_warn "The local CA in ${ca} expires in less than 90 days; regenerating it requires re-importing it in browsers."
     return 0
   fi
-  [[ ! -e $ca/ca.key && ! -e $ca/ca.crt ]] || die "${ca}: CA incompleta (falta ca.key o ca.crt). Revisa o elimina el directorio ca/ a mano."
+  [[ ! -e $ca/ca.key && ! -e $ca/ca.crt ]] || die "${ca}: incomplete CA (ca.key or ca.crt is missing). Review or remove the ca/ directory by hand."
 
   install -d -m 755 "$ca"
   (
@@ -66,7 +66,7 @@ tls_ensure_ca() {
     -addext "subjectKeyIdentifier=hash" \
     -out "$ca/ca.crt"
   chmod 0644 "$ca/ca.crt"
-  log_change "creada la CA local ${ca}/ca.crt (${TLS_CA_DAYS} días)"
+  log_change "created local CA ${ca}/ca.crt (${TLS_CA_DAYS} days)"
 }
 
 # tls_leaf_valid <dir> <name>...: succeeds if the leaf exists, is signed by the CA, matches its key,
@@ -110,7 +110,7 @@ EOF
   mv -f "$srv/key.pem.new" "$srv/key.pem"
   mv -f "$srv/cert.pem.new" "$srv/cert.pem"
   rm -rf "$tmp"
-  log_change "emitido el certificado de ${1} (SAN: ${sans}; ${TLS_LEAF_DAYS} días)"
+  log_change "issued certificate for ${1} (SAN: ${sans}; ${TLS_LEAF_DAYS} days)"
 }
 
 # tls_ensure_perms <path> <uid:gid> <mode>: like ensure_perms but compares NUMERIC ids, so the result

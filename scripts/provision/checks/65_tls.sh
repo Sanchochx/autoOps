@@ -40,16 +40,16 @@ no_ca_key_in_srv() { [[ ! -e $SRV/ca.key ]] && ! cmp -s "$CA/ca.key" "$SRV/key.p
 
 check "TLS_MODE definido (selfsigned o acme)" mode_valid
 if [[ $TLS_MODE == selfsigned ]]; then
-  check "CA local: ca.crt es una CA y ca.key es su par" ca_is_ca_pair
+  check "local CA: ca.crt is a CA and ca.key is its pair" ca_is_ca_pair
   check "ca.key es root:root 0400 y ca.crt root:root 0644" ca_perms
-  check "el certificado se verifica contra la CA local" chain_verifies
-  check "el SAN del certificado incluye DOMAIN (${DOMAIN})" san_has_domain
-  check "al certificado le quedan más de ${TLS_RENEW_BEFORE_DAYS} días" not_expiring
-  check "validez del certificado <= 398 días (límite de los navegadores)" lifetime_ok
-  check "la clave del servidor corresponde al certificado" key_matches
+  check "the certificate verifies against the local CA" chain_verifies
+  check "the certificate SAN includes DOMAIN (${DOMAIN})" san_has_domain
+  check "the certificate has more than ${TLS_RENEW_BEFORE_DAYS} days left" not_expiring
+  check "certificate validity <= 398 days (browser limit)" lifetime_ok
+  check "the server key matches the certificate" key_matches
   check "server/ es ${PROXY_IDS} 0750, key.pem 0400 y cert.pem 0444" srv_perms
-  check "server/ solo contiene cert.pem y key.pem" only_leaf_files
-  check "la clave de la CA no está en server/ (lo único que se monta en el proxy)" no_ca_key_in_srv
+  check "server/ only contains cert.pem and key.pem" only_leaf_files
+  check "the CA key is not in server/ (the only thing mounted into the proxy)" no_ca_key_in_srv
 fi
 
 check_finish

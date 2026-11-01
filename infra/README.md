@@ -50,7 +50,7 @@ check is skipped) unless `RUNNER_REPO_URL` is set in `${APP_DIR}/.env`; see [`ru
    ```bash
    sudo ADMIN_USER=<user> ./scripts/provision/20_ssh.sh --confirm      # or re-run bootstrap with --confirm-ssh
    ```
-6. **Idempotency.** Run step 4 again: it must end with `Sin cambios` and arm no rollback.
+6. **Idempotency.** Run step 4 again: it must end with `No changes` and arm no rollback.
 7. **Start and migrate** (first start only): `sudo systemctl start autoops`, then `sudo systemctl start autoops-migrate`.
 8. **Verify**: `sudo ./scripts/provision/verify.sh --env-file provision.env` (use `-q` for failures only). Remove
    `STACK_REQUIRED=0` so the runtime checks run too.

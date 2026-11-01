@@ -40,23 +40,23 @@ action_ufw()    { jail_get actions | grep -q '^ufw'; }
 syslog_target() { fail2ban-client get logtarget | grep -qx '.*SYSLOG'; }
 no_logpath()    { ! grep -Eq '^[[:space:]]*logpath' "$JAIL_CONF"; }
 
-check "fail2ban-client valida la configuración" fail2ban-client -t
-check "el servicio fail2ban está activo" f2b_active
-check "el servicio fail2ban arranca en el boot" f2b_enabled
-check "el jail sshd está cargado" jail_loaded
+check "fail2ban-client validates the configuration" fail2ban-client -t
+check "the fail2ban service is active" f2b_active
+check "the fail2ban service starts at boot" f2b_enabled
+check "the sshd jail is loaded" jail_loaded
 check "jail leyendo de journald (backend = systemd)" conf_has '^backend[[:space:]]*=[[:space:]]*systemd$'
-check "sin logpath: no se leen archivos de log" no_logpath
+check "no logpath: no log files are read" no_logpath
 check "maxretry = ${MAXRETRY}" maxretry_ok
 check "ban progresivo (bantime.increment = true)" conf_has '^bantime\.increment[[:space:]]*=[[:space:]]*true$'
 check "ignoreip contiene ${FAIL2BAN_IGNOREIP}" ignoreip_ok
-check "ignoreip contiene el loopback" loopback_ok
-check "acción de ban configurada (ufw/nftables/iptables)" action_ok
+check "ignoreip contains the loopback" loopback_ok
+check "ban action configured (ufw/nftables/iptables)" action_ok
 check "logs de fail2ban a syslog/journald (sin /var/log/fail2ban.log)" syslog_target
 
 if command -v ufw >/dev/null 2>&1; then
-  check "UFW instalado: el jail banea vía ufw" action_ufw
+  check "UFW installed: the jail bans via ufw" action_ufw
 else
-  log_info "UFW no instalado: se omite el control de banaction=ufw (se exigirá tras US-NET-001)."
+  log_info "UFW not installed: skipping the banaction=ufw check (required after US-NET-001)."
 fi
 
 check_finish

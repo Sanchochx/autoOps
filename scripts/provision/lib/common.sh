@@ -13,13 +13,13 @@ env_value() {
 }
 
 require_root() {
-  [[ $EUID -eq 0 ]] || die "Ejecuta este script con sudo o como root."
+  [[ $EUID -eq 0 ]] || die "Run this script with sudo or as root."
 }
 
 require_var() {
   local name
   for name in "$@"; do
-    [[ -n "${!name:-}" ]] || die "Falta la variable obligatoria ${name}."
+    [[ -n "${!name:-}" ]] || die "Missing required variable ${name}."
   done
 }
 
@@ -67,16 +67,16 @@ ensure_file() {
 # loader-sensitive names (PATH, LD_*, ...) and on files writable by group/others.
 load_env_file() {
   local file=$1 line key value n=0
-  [[ -r $file ]] || die "No se puede leer el archivo de variables '${file}'."
+  [[ -r $file ]] || die "Cannot read the variables file '${file}'."
   [[ "$(stat -c '%A' "$file")" =~ ^-....-..-.$ ]] \
-    || die "${file} admite escritura de grupo/otros; corrige con chmod go-w."
+    || die "${file} is group/other writable; fix with chmod go-w."
   while IFS= read -r line || [[ -n $line ]]; do
     n=$((n + 1))
     [[ -z ${line//[[:space:]]/} || $line =~ ^[[:space:]]*# ]] && continue
-    [[ $line =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || die "${file}:${n}: línea inválida (se espera NOMBRE=valor)."
+    [[ $line =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || die "${file}:${n}: invalid line (expected NAME=value)."
     key="${BASH_REMATCH[1]}"
     value="${BASH_REMATCH[2]}"
-    [[ $key =~ ^(PATH|IFS|ENV|BASH_ENV|SHELLOPTS|LD_.*|HOME)$ ]] && die "${file}:${n}: variable no permitida '${key}'."
+    [[ $key =~ ^(PATH|IFS|ENV|BASH_ENV|SHELLOPTS|LD_.*|HOME)$ ]] && die "${file}:${n}: variable not allowed '${key}'."
     if [[ $value =~ ^\"(.*)\"$ || $value =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"; fi
     [[ -n ${!key:-} ]] || export "${key}=${value}"
   done <"$file"
@@ -110,16 +110,16 @@ check_finish() {
     printf '\n%d control(es) fallaron.\n' "$CHECK_FAILS" >&2
     exit 1
   fi
-  printf '\nTodos los controles pasaron.\n'
+  printf '\nAll checks passed.\n'
 }
 
 # resolve_ssh_port: prints the SSH port (SSH_PORT or, if unset, sshd -T's effective one).
 resolve_ssh_port() {
   local port="${SSH_PORT:-}"
   if [[ -z $port ]]; then
-    [[ -x /usr/sbin/sshd ]] || die "openssh-server no está instalado y SSH_PORT no se definió."
+    [[ -x /usr/sbin/sshd ]] || die "openssh-server is not installed and SSH_PORT was not set."
     port="$(/usr/sbin/sshd -T | awk '$1 == "port" { print $2; exit }')"
   fi
-  [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "SSH_PORT inválido: '${port}'."
+  [[ $port =~ ^[0-9]+$ ]] && ((port >= 1 && port <= 65535)) || die "Invalid SSH_PORT: '${port}'."
   printf '%s' "$port"
 }
