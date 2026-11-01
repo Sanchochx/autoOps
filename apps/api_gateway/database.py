@@ -26,7 +26,7 @@ def get_database_url() -> str:
     """Return ``DATABASE_URL`` or fail with an explicit error if it is missing."""
     url = os.getenv("DATABASE_URL", "").strip()
     if not url:
-        raise RuntimeError("La variable de entorno DATABASE_URL no está definida.")
+        raise RuntimeError("The DATABASE_URL environment variable is not set.")
     return url
 
 

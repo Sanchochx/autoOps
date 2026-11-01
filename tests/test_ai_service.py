@@ -72,12 +72,12 @@ class FakeGraph:
 
 
 TRIAGE_UPDATES: list[dict[str, Any]] = [
-    {"triage_node": {"severity": "critical", "agent_notes": ["triage: severidad = critical"]}},
+    {"triage_node": {"severity": "critical", "agent_notes": ["triage: severity = critical"]}},
     {
         "investigator_node": {
             "status": "investigated",
-            "analysis": "Pool de conexiones saturado",
-            "agent_notes": ["investigator: Pool de conexiones saturado"],
+            "analysis": "Connection pool saturated",
+            "agent_notes": ["investigator: Connection pool saturated"],
         }
     },
 ]
@@ -105,7 +105,7 @@ async def test_updates_severity_and_status_from_graph(
     assert graph.inputs == [{"ticket_id": str(ticket.id), "description": "La BD responde lento"}]
     assert graph.stream_modes == ["updates"]
     assert ticket.severity is TicketSeverity.CRITICAL
-    assert ticket.analysis == "Pool de conexiones saturado"
+    assert ticket.analysis == "Connection pool saturated"
     assert ticket.status is TicketStatus.ESCALATED
     # One commit when the graph starts (investigating), one with the result (escalated).
     assert session.commit.await_count == 2
@@ -125,7 +125,7 @@ async def test_emits_one_event_per_step_with_contract(
         "gateway", "triage_node", "investigator_node", "database"
     ]
     assert all(e["type"] == "ai_event" and e["ticket_id"] == str(ticket.id) for e in events)
-    assert events[1]["message"] == "triage: severidad = critical"
+    assert events[1]["message"] == "triage: severity = critical"
 
 
 async def test_missing_ticket_skips_graph(session: AsyncMock, ws_manager: MagicMock) -> None:
@@ -143,7 +143,7 @@ async def test_graph_failure_keeps_ticket_and_does_not_raise(
     session: AsyncMock, ticket: Ticket, ws_manager: MagicMock
 ) -> None:
     session.get.return_value = ticket
-    graph = FakeGraph(error=RuntimeError("LLM caído"))
+    graph = FakeGraph(error=RuntimeError("LLM down"))
 
     await process_ticket_with_ai(ticket.id, graph, FakeSessionFactory(session), ws_manager)
 
@@ -157,7 +157,7 @@ async def test_graph_failure_after_start_returns_ticket_to_open(
     session: AsyncMock, ticket: Ticket, ws_manager: MagicMock
 ) -> None:
     session.get.return_value = ticket
-    graph = FakeGraph(TRIAGE_UPDATES[:1], error=RuntimeError("LLM caído"))
+    graph = FakeGraph(TRIAGE_UPDATES[:1], error=RuntimeError("LLM down"))
 
     await process_ticket_with_ai(ticket.id, graph, FakeSessionFactory(session), ws_manager)
 

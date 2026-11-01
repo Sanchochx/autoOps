@@ -28,7 +28,7 @@ def build_chat_model(env: Mapping[str, str] | None = None) -> BaseChatModel:
     values = os.environ if env is None else env
     for name in REQUIRED_VARIABLES:
         if not values.get(name):
-            raise RuntimeError(f"La variable de entorno {name} no está definida")
+            raise RuntimeError(f"The {name} environment variable is not set")
     return ChatOpenAI(
         model=values["AI_MODEL_NAME"],
         api_key=values["OPENAI_API_KEY"],

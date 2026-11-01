@@ -8,7 +8,7 @@ from ai_engine.nodes import parse_severity
 
 
 def test_graph_runs_triage_then_investigator() -> None:
-    model = FakeListChatModel(responses=["high", "Posible saturación de conexiones."])
+    model = FakeListChatModel(responses=["high", "Possible connection saturation."])
     graph = build_graph(model, context_provider=lambda state: "db: 85% conexiones")
 
     result = graph.invoke({"ticket_id": "T-1", "description": "La BD responde lento"})
@@ -16,9 +16,9 @@ def test_graph_runs_triage_then_investigator() -> None:
     assert result["severity"] == "high"
     assert result["status"] == "investigated"
     assert len(result["agent_notes"]) == 2
-    assert "saturación" in result["agent_notes"][1]
+    assert "saturation" in result["agent_notes"][1]
     assert len(result["messages"]) == 2
-    assert result["analysis"] == "Posible saturación de conexiones."
+    assert result["analysis"] == "Possible connection saturation."
 
 
 @pytest.mark.parametrize(

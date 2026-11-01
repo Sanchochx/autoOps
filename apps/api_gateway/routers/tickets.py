@@ -23,7 +23,7 @@ async def _get_ticket_or_404(session: AsyncSession, ticket_id: UUID) -> Ticket:
     ticket = await session.get(Ticket, ticket_id)
     if ticket is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
         )
     return ticket
 
@@ -59,6 +59,16 @@ async def list_tickets(session: AsyncSession = Depends(get_db_session)) -> list[
 async def delete_all_tickets(session: AsyncSession = Depends(get_db_session)) -> None:
     """Delete every ticket (irreversible); the dashboard asks for confirmation first."""
     await session.execute(delete(Ticket))
+    await session.commit()
+
+
+@router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ticket(
+    ticket_id: UUID, session: AsyncSession = Depends(get_db_session)
+) -> None:
+    """Delete one ticket (irreversible), or 404 if it does not exist."""
+    ticket = await _get_ticket_or_404(session, ticket_id)
+    await session.delete(ticket)
     await session.commit()
 
 

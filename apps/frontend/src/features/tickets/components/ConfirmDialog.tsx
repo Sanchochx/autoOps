@@ -42,17 +42,17 @@ export function ConfirmDialog({
         event.preventDefault()
         if (!busy) onCancel()
       }}
-      className="m-auto w-[min(28rem,90vw)] rounded-lg p-0 shadow-xl backdrop:bg-slate-950/60"
+      className="m-auto w-[min(28rem,90vw)] rounded-lg border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/70"
     >
       <div className="p-5">
-        <h2 id={titleId} className="text-base font-semibold text-slate-900">
+        <h2 id={titleId} className="text-base font-semibold text-ink">
           {title}
         </h2>
-        <div id={descId} className="mt-2 text-sm text-slate-700">
+        <div id={descId} className="mt-2 text-sm text-muted">
           {children}
         </div>
         {error && (
-          <p role="alert" className="mt-3 text-sm text-red-700">
+          <p role="alert" className="mt-3 text-sm text-red-300">
             {error}
           </p>
         )}
@@ -62,17 +62,17 @@ export function ConfirmDialog({
             autoFocus
             disabled={busy}
             onClick={onCancel}
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-900 hover:bg-slate-100 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
+            className="rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm text-ink hover:bg-field disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Cancelar
+            Cancel
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className="rounded bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+            className="rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
           >
-            {busy ? 'Limpiando…' : confirmLabel}
+            {busy ? 'Clearing…' : confirmLabel}
           </button>
         </div>
       </div>
