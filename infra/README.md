@@ -16,6 +16,7 @@ the per-topic folders below.
 | [`traefik/`](traefik/README.md) | Reverse proxy: single entry point, path routing (Phase 5, PROXY-001) |
 | [`ci/`](ci/README.md) | GitHub Actions CI, images published to GHCR (CICD-001, CICD-002) |
 | [`runner/`](runner/README.md) | Containerized self-hosted GitHub Actions runner, optional (Phase 5, CICD-003) |
+| [`deploy/`](deploy/README.md) | Pull-based deploy on the host: request/status channel, guards, rollback (Phase 5, CICD-004) |
 
 ## Scripts
 

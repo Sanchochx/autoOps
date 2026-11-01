@@ -33,7 +33,7 @@
 - **Containers:** Docker & Docker Compose
 - **Reverse proxy:** Traefik / Nginx with SSL termination (Let's Encrypt)
 - **Deployment OS:** Ubuntu Server (AWS EC2 / local VirtualBox VM)
-- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; a containerized self-hosted runner on the host, see `infra/runner/README.md`; automatic deployment over SSH)
+- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; a containerized self-hosted runner on the host, see `infra/runner/README.md`; pull-based deployment: the runner leaves a request, the host validates, pulls and applies it with rollback, see `infra/deploy/README.md`)
 
 ---
 
