@@ -187,8 +187,9 @@ DB_USER=autoops_user
 DB_PASSWORD=autoops_password
 
 # AI Models & Telemetry
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
+AI_MODEL_NAME=deepseek-chat
+DEEPSEEK_API_KEY=your_deepseek_key
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1   # OpenAI-compatible; used through ChatOpenAI
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langsmith_key
 

@@ -19,12 +19,12 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
-│  Total User Stories:             31                         │
-│  ✅ Completed:                   31                         │
+│  Total User Stories:             32                         │
+│  ✅ Completed:                   32                         │
 │  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    0                          │
 │                                                             │
-│  Progress: [██████████] 100% (31/31)                         │
+│  Progress: [██████████] 100% (32/32)                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,6 +58,7 @@
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 5 | 0 | 0 | [██████████] 100% |
+| 15 | Frontend Ticket Management | FE | 1 | 1 | 0 | 0 | [██████████] 100% |
 
 ---
 
@@ -474,6 +475,23 @@
 - **Dependencies:** US-CICD-004
 - **Acceptance Criteria:** 5
 - **Scope:** workflow chaining CI → build → deploy job on the self-hosted runner, post-deploy smoke test over HTTPS, rollback evidence, documentation, phase 5 summary.
+
+---
+
+## Epic 15: Frontend Ticket Management
+
+**Priority:** HIGH
+**Folder:** `context/user_stories/epic_15_frontend/`
+
+### User Stories
+
+#### [x] US-FE-001: Ticket Management from the Dashboard
+- **File:** `context/user_stories/epic_15_frontend/US-FE-001_ticket_management.md`
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** US-FRONT-005, US-PROXY-001
+- **Acceptance Criteria:** 5
+- **Scope:** create/list tickets from React next to the live console; relative `/api/v1/tickets`; 5 s polling.
 
 ---
 

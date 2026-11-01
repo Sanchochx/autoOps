@@ -63,6 +63,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
       # Same-origin values the Compose build passes as build-args (public, no secrets).
       - name: Build
         env:

@@ -16,8 +16,10 @@ WORKDIR /app
 # Vite embeds the VITE_* variables in the bundle at build time (they are public: no secrets).
 ARG VITE_API_BASE_URL
 ARG VITE_WS_BASE_URL
+ARG VITE_TICKETS_POLL_INTERVAL_MS
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
-    VITE_WS_BASE_URL=$VITE_WS_BASE_URL
+    VITE_WS_BASE_URL=$VITE_WS_BASE_URL \
+    VITE_TICKETS_POLL_INTERVAL_MS=$VITE_TICKETS_POLL_INTERVAL_MS
 
 # Manifests only: the dependency layer stays cached as long as they do not change.
 COPY package.json package-lock.json ./
