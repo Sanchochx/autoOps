@@ -80,6 +80,12 @@ export async function createTicket(input: NewTicketInput, signal?: AbortSignal):
   return requireTicket(await response.json())
 }
 
+/** Deletes every ticket (irreversible). */
+export async function deleteAllTickets(signal?: AbortSignal): Promise<void> {
+  const response = await fetch(ticketsUrl(), { method: 'DELETE', signal })
+  if (!response.ok) throw await errorFrom(response)
+}
+
 export async function listTickets(signal?: AbortSignal): Promise<Ticket[]> {
   const response = await fetch(ticketsUrl(), { signal })
   if (!response.ok) throw await errorFrom(response)

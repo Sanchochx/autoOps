@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { useTickets } from '../hooks/useTickets'
+import { ClearTicketsButton } from './ClearTicketsButton'
 import { AgentActivityCell } from './AgentActivityCell'
 import { SeverityBadge, StatusBadge } from './TicketBadges'
 
@@ -10,9 +11,12 @@ export function TicketList(): React.JSX.Element {
 
   return (
     <section aria-labelledby="ticket-list-title" className="rounded-lg bg-white p-4 shadow-sm">
-      <h2 id="ticket-list-title" className="mb-3 text-sm font-semibold text-slate-900">
-        Tickets
-      </h2>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 id="ticket-list-title" className="text-sm font-semibold text-slate-900">
+          Tickets
+        </h2>
+        <ClearTicketsButton disabled={tickets.length === 0} />
+      </div>
       {status === 'loading' && (
         <p role="status" className="text-sm text-slate-700">
           Cargando tickets…

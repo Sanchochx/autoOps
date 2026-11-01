@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, createTicket, listTickets, toTicket } from './ticketApi'
+import { ApiError, createTicket, deleteAllTickets, listTickets, toTicket } from './ticketApi'
 
 const RAW = {
   id: '3f2b8c1e-0000-4000-8000-000000000001',
@@ -60,5 +60,19 @@ describe('listTickets', () => {
   it('rejects an invalid body', async () => {
     mockFetch(Response.json({ nope: true }))
     await expect(listTickets()).rejects.toBeInstanceOf(ApiError)
+  })
+})
+
+describe('deleteAllTickets', () => {
+  it('sends DELETE to the collection path', async () => {
+    const fetchFn = mockFetch(new Response(null, { status: 204 }))
+    await deleteAllTickets()
+    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit]
+    expect(url).toMatch(/\/api\/v1\/tickets$/)
+    expect(init.method).toBe('DELETE')
+  })
+  it('raises ApiError on failure', async () => {
+    mockFetch(Response.json({ detail: 'No' }, { status: 500 }))
+    await expect(deleteAllTickets()).rejects.toMatchObject({ status: 500 })
   })
 })

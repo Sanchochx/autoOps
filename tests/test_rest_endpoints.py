@@ -186,3 +186,14 @@ def test_patch_ticket_not_found_returns_404(
 def test_patch_ticket_invalid_status_returns_422(client: TestClient) -> None:
     response = client.patch(f"/api/v1/tickets/{uuid4()}", json={"status": "bogus"})
     assert response.status_code == 422
+
+
+def test_delete_all_tickets_returns_204_and_commits(
+    client: TestClient, session: AsyncMock
+) -> None:
+    response = client.delete("/api/v1/tickets")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    session.execute.assert_awaited_once()
+    session.commit.assert_awaited_once()
