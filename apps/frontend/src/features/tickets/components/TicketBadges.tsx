@@ -11,6 +11,7 @@ const STATUS: Record<TicketStatus, { label: string; className: string }> = {
   open: { label: 'Abierto', className: 'bg-sky-100 text-sky-950' },
   investigating: { label: 'Investigando', className: 'bg-violet-100 text-violet-950' },
   pending_approval: { label: 'Pendiente de aprobación', className: 'bg-amber-100 text-amber-950' },
+  escalated: { label: 'Escalado', className: 'bg-indigo-100 text-indigo-950' },
   resolved: { label: 'Resuelto', className: 'bg-emerald-100 text-emerald-950' },
 }
 

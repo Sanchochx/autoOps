@@ -197,3 +197,29 @@ def test_delete_all_tickets_returns_204_and_commits(
     assert response.content == b""
     session.execute.assert_awaited_once()
     session.commit.assert_awaited_once()
+
+
+def test_ticket_response_includes_analysis(client: TestClient, session: AsyncMock) -> None:
+    ticket = make_ticket(analysis="Causa raíz probable", status=TicketStatus.ESCALATED)
+    session.get.return_value = ticket
+
+    body = client.get(f"/api/v1/tickets/{ticket.id}").json()
+
+    assert body["analysis"] == "Causa raíz probable"
+    assert body["status"] == "escalated"
+
+
+def test_ticket_analysis_is_null_by_default(client: TestClient, session: AsyncMock) -> None:
+    ticket = make_ticket()
+    session.get.return_value = ticket
+
+    assert client.get(f"/api/v1/tickets/{ticket.id}").json()["analysis"] is None
+
+
+def test_create_ticket_ignores_client_supplied_analysis(
+    client: TestClient, session: AsyncMock
+) -> None:
+    response = client.post("/api/v1/tickets", json={**VALID_PAYLOAD, "analysis": "forzado"})
+
+    assert response.status_code == 201
+    assert response.json()["analysis"] is None

@@ -22,6 +22,7 @@ class TicketStatus(str, Enum):
     OPEN = "open"
     INVESTIGATING = "investigating"
     PENDING_APPROVAL = "pending_approval"
+    ESCALATED = "escalated"
     RESOLVED = "resolved"
 
 
@@ -42,6 +43,7 @@ class TicketRead(TicketCreate):
 
     id: UUID
     status: TicketStatus
+    analysis: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -62,3 +64,4 @@ class TicketUpdate(BaseModel):
     description: str | None = Field(default=None, min_length=1, strict=True)
     severity: TicketSeverity | None = None
     status: TicketStatus | None = None
+    analysis: str | None = Field(default=None, strict=True)

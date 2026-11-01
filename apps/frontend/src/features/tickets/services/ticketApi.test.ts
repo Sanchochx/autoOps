@@ -7,6 +7,7 @@ const RAW = {
   description: 'Connection refused',
   severity: 'high',
   status: 'open',
+  analysis: null,
   created_at: '2026-11-01T10:00:00Z',
   updated_at: '2026-11-01T10:00:00Z',
 }
@@ -22,6 +23,15 @@ afterEach(() => vi.unstubAllGlobals())
 describe('toTicket', () => {
   it('maps a valid payload', () => {
     expect(toTicket(RAW)).toMatchObject({ id: RAW.id, createdAt: RAW.created_at })
+  })
+  it('keeps a persisted analysis and the escalated status', () => {
+    const ticket = toTicket({ ...RAW, status: 'escalated', analysis: 'Pool saturado' })
+    expect(ticket).toMatchObject({ status: 'escalated', analysis: 'Pool saturado' })
+  })
+  it('treats a missing analysis as null and rejects a non-string one', () => {
+    const { analysis: _omitted, ...legacy } = RAW
+    expect(toTicket(legacy)?.analysis).toBeNull()
+    expect(toTicket({ ...RAW, analysis: 42 })).toBeNull()
   })
   it('rejects malformed payloads', () => {
     expect(toTicket({ ...RAW, severity: 'urgent' })).toBeNull()

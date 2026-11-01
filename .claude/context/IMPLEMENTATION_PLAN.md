@@ -495,6 +495,23 @@
 
 ---
 
+## Epic 16: Backend Ticket Lifecycle
+
+**Priority:** HIGH
+**Folder:** `context/user_stories/epic_16_backend/`
+
+### User Stories
+
+#### [~] US-BE-002: Persist the AI Root-Cause Analysis and Close the Ticket Lifecycle
+- **File:** `context/user_stories/epic_16_backend/US-BE-002_rca_persistence.md`
+- **Priority:** HIGH
+- **Estimate:** 5 pts
+- **Dependencies:** US-INT-001, US-INT-002, US-DB-001, US-FE-001
+- **Acceptance Criteria:** 5
+- **Scope:** `tickets.analysis` + `escalated` status (Alembic 0002), gateway persists the RCA (failure returns to `open`), frontend shows the persisted analysis.
+
+---
+
 ## 📝 Implementation Notes
 
 ### How to use this plan

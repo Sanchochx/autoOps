@@ -94,6 +94,7 @@ def make_investigator_node(
         logger.info("Investigación ticket=%s severity=%s", state.get("ticket_id"), severity)
         return {
             "status": "investigated",
+            "analysis": str(response.content),
             "messages": [response],
             "agent_notes": [f"investigator: {response.content}"],
         }

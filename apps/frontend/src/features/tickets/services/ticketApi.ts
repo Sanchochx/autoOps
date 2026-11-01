@@ -4,7 +4,7 @@ import { buildApiUrl } from './buildApiUrl'
 const TICKETS_PATH = '/api/v1/tickets'
 const DEFAULT_SEVERITY: TicketSeverity = 'medium'
 const SEVERITIES: readonly string[] = ['low', 'medium', 'high', 'critical']
-const STATUSES: readonly string[] = ['open', 'investigating', 'pending_approval', 'resolved']
+const STATUSES: readonly string[] = ['open', 'investigating', 'pending_approval', 'escalated', 'resolved']
 
 /** Non-2xx response from the Gateway. */
 export class ApiError extends Error {
@@ -28,11 +28,12 @@ function isString(value: unknown): value is string {
 /** Validates one `TicketRead` and maps it to the `Ticket` model; `null` if malformed. */
 export function toTicket(value: unknown): Ticket | null {
   if (!isRecord(value)) return null
-  const { id, title, description, severity, status, created_at, updated_at } = value
+  const { id, title, description, severity, status, analysis, created_at, updated_at } = value
   if (
     !isString(id) || !isString(title) || !isString(description) ||
     !isString(severity) || !SEVERITIES.includes(severity) ||
     !isString(status) || !STATUSES.includes(status) ||
+    (analysis !== undefined && analysis !== null && !isString(analysis)) ||
     !isString(created_at) || !isString(updated_at)
   ) {
     return null
@@ -43,6 +44,7 @@ export function toTicket(value: unknown): Ticket | null {
     description,
     severity: severity as TicketSeverity,
     status: status as TicketStatus,
+    analysis: isString(analysis) ? analysis : null,
     createdAt: created_at,
     updatedAt: updated_at,
   }

@@ -65,7 +65,7 @@ export function TicketList(): React.JSX.Element {
                   <td className="px-3 py-2">{ticket.title}</td>
                   <td className="px-3 py-2"><StatusBadge status={ticket.status} /></td>
                   <td className="px-3 py-2"><SeverityBadge severity={ticket.severity} /></td>
-                  <td className="px-3 py-2"><AgentActivityCell ticketId={ticket.id} /></td>
+                  <td className="px-3 py-2"><AgentActivityCell ticket={ticket} /></td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <time dateTime={ticket.createdAt}>
                       {new Date(ticket.createdAt).toLocaleString()}

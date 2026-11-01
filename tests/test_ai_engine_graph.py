@@ -18,6 +18,7 @@ def test_graph_runs_triage_then_investigator() -> None:
     assert len(result["agent_notes"]) == 2
     assert "saturación" in result["agent_notes"][1]
     assert len(result["messages"]) == 2
+    assert result["analysis"] == "Posible saturación de conexiones."
 
 
 @pytest.mark.parametrize(

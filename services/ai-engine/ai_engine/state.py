@@ -16,12 +16,14 @@ class AgentState(TypedDict, total=False):
     """Graph state for a ticket.
 
     ``messages`` accumulates the history with the ``add_messages`` reducer and
-    ``agent_notes`` accumulates each agent's notes.
+    ``agent_notes`` accumulates each agent's notes. ``analysis`` is the Investigator's final
+    root-cause analysis, which the caller persists.
     """
 
     ticket_id: str
     description: str
     severity: Severity
+    analysis: str
     agent_notes: Annotated[list[str], operator.add]
     status: TicketStatus
     messages: Annotated[list[AnyMessage], add_messages]
