@@ -6,14 +6,14 @@
 set -euo pipefail
 
 action="${SSH_ORIGINAL_COMMAND:-}"
-logger -t autoops-deploy "solicitud de despliegue: '${action}' desde ${SSH_CONNECTION%% *}"
+logger -t autoops-deploy "deploy request: '${action}' from ${SSH_CONNECTION%% *}"
 
 case "$action" in
   deploy)
-    echo "autoops-deploy: acción 'deploy' aceptada; despliegue no implementado (Fase 5)."
+    echo "autoops-deploy: 'deploy' action accepted; deployment not implemented (Phase 5)."
     ;;
   *)
-    echo "autoops-deploy: acción no permitida." >&2
+    echo "autoops-deploy: action not allowed." >&2
     exit 1
     ;;
 esac

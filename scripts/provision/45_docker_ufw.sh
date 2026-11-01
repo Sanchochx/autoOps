@@ -20,45 +20,45 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/docker_ufw_rules.sh"
 
 require_root
-command -v ufw >/dev/null 2>&1 || die "UFW no está instalado (ejecuta antes 40_ufw.sh)."
-command -v docker >/dev/null 2>&1 || die "Docker no está instalado (ejecuta antes 60_docker.sh)."
-[[ -f $AFTER_RULES ]] || die "No existe ${AFTER_RULES}."
-[[ -f $DOCKER_USER_TPL ]] || die "No existe la plantilla ${DOCKER_USER_TPL}."
+command -v ufw >/dev/null 2>&1 || die "UFW is not installed (run 40_ufw.sh first)."
+command -v docker >/dev/null 2>&1 || die "Docker is not installed (run 60_docker.sh first)."
+[[ -f $AFTER_RULES ]] || die "${AFTER_RULES} does not exist."
+[[ -f $DOCKER_USER_TPL ]] || die "Template ${DOCKER_USER_TPL} does not exist."
 
 IFACES="$(resolve_ext_ifaces)"
 PORTS="$(resolve_public_ports)"
-[[ -n $PORTS ]] || log_warn "Sin puertos públicos: todo el tráfico externo hacia contenedores quedará descartado."
+[[ -n $PORTS ]] || log_warn "No public ports: all external traffic to containers will be dropped."
 BLOCK="$(render_docker_user_block "$IFACES" "$PORTS")"
 
 if [[ ${DOCKER_UFW_DRY_RUN:-0} == 1 ]]; then
-  log_info "DRY RUN: interfaces externas='${IFACES}' puertos públicos='${PORTS}'. Bloque a instalar:"
+  log_info "DRY RUN: external interfaces='${IFACES}' public ports='${PORTS}'. Block to install:"
   printf '%s\n' "$BLOCK"
   exit 0
 fi
 
 # Syntax of the isolated block (does not touch the kernel).
 printf '*filter\n%s\nCOMMIT\n' "$BLOCK" | iptables-restore --test --noflush \
-  || die "El bloque DOCKER-USER generado no es válido para iptables-restore."
+  || die "The generated DOCKER-USER block is not valid for iptables-restore."
 
 if [[ "$(current_block "$AFTER_RULES")" == "$BLOCK" ]]; then
-  log_info "Bloque DOCKER-USER ya está al día en ${AFTER_RULES}."
+  log_info "DOCKER-USER block is already up to date in ${AFTER_RULES}."
 else
   backup="${AFTER_RULES}.autoops.bak"
   cp -p "$AFTER_RULES" "$backup"
   insert_block "$AFTER_RULES" "$BLOCK"
-  log_change "bloque DOCKER-USER escrito en ${AFTER_RULES} (copia: ${backup})"
+  log_change "DOCKER-USER block written to ${AFTER_RULES} (backup: ${backup})"
   if [[ "$(ufw status)" == "Status: active"* ]]; then
     if ! ufw reload >/dev/null; then
       cp -p "$backup" "$AFTER_RULES"
       ufw reload >/dev/null || true
-      die "ufw reload falló; se restauró ${AFTER_RULES}."
+      die "ufw reload failed; ${AFTER_RULES} was restored."
     fi
     log_change "UFW recargado"
   else
-    log_warn "UFW inactivo: las reglas se aplicarán al habilitarlo (40_ufw.sh)."
+    log_warn "UFW inactive: the rules will be applied when it is enabled (40_ufw.sh)."
   fi
 fi
 
 systemctl is-active --quiet docker || { systemctl start docker && log_change "docker iniciado"; }
 iptables -S DOCKER-USER
-log_info "45_docker_ufw.sh finalizado. Valida desde OTRA máquina (infra/firewall/README.md)."
+log_info "45_docker_ufw.sh finished. Validate from ANOTHER machine (infra/firewall/README.md)."

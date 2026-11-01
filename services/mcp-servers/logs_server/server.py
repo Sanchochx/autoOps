@@ -25,7 +25,7 @@ def _configure_network() -> None:
     """Apply the listen host and port from the environment (no embedded values)."""
     port = os.environ.get("MCP_LOGS_PORT")
     if not port:
-        raise RuntimeError("Falta la variable de entorno MCP_LOGS_PORT")
+        raise RuntimeError("The MCP_LOGS_PORT environment variable is missing")
     # Loopback only by default; in a container MCP_LOGS_HOST=0.0.0.0 is set.
     mcp.settings.host = os.environ.get("MCP_LOGS_HOST", "127.0.0.1")
     mcp.settings.port = int(port)
@@ -35,16 +35,16 @@ SIMULATED_LOGS: dict[str, list[tuple[str, str]]] = {
     "api_gateway": [
         ("INFO", "GET /health 200 3ms"),
         ("INFO", "POST /api/v1/tickets 201 18ms"),
-        ("WARNING", "Latencia elevada en /api/v1/tickets: 850ms"),
-        ("ERROR", "WebSocket /ws/stream: conexión cerrada de forma abrupta"),
-        ("ERROR", "Timeout al contactar con el motor de IA tras 30s"),
+        ("WARNING", "High latency on /api/v1/tickets: 850ms"),
+        ("ERROR", "WebSocket /ws/stream: connection closed abruptly"),
+        ("ERROR", "Timeout contacting the AI engine after 30s"),
     ],
     "database": [
-        ("INFO", "checkpoint completado: 1204 buffers escritos"),
-        ("WARNING", "conexiones activas al 85% del máximo"),
-        ("ERROR", "deadlock detectado entre las transacciones 4821 y 4825"),
-        ("ERROR", "consulta lenta (12.4s): SELECT * FROM tickets WHERE status = 'open'"),
-        ("INFO", "autovacuum ejecutado sobre la tabla tickets"),
+        ("INFO", "checkpoint complete: 1204 buffers written"),
+        ("WARNING", "active connections at 85% of the maximum"),
+        ("ERROR", "deadlock detected between transactions 4821 and 4825"),
+        ("ERROR", "slow query (12.4s): SELECT * FROM tickets WHERE status = 'open'"),
+        ("INFO", "autovacuum run on the tickets table"),
     ],
 }
 

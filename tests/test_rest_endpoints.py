@@ -199,13 +199,37 @@ def test_delete_all_tickets_returns_204_and_commits(
     session.commit.assert_awaited_once()
 
 
+def test_delete_ticket_returns_204_and_commits(
+    client: TestClient, session: AsyncMock
+) -> None:
+    ticket = make_ticket()
+    session.get.return_value = ticket
+
+    response = client.delete(f"/api/v1/tickets/{ticket.id}")
+
+    assert response.status_code == 204
+    session.delete.assert_awaited_once_with(ticket)
+    session.commit.assert_awaited_once()
+
+
+def test_delete_ticket_not_found_returns_404(
+    client: TestClient, session: AsyncMock
+) -> None:
+    session.get.return_value = None
+
+    response = client.delete(f"/api/v1/tickets/{uuid4()}")
+
+    assert response.status_code == 404
+    session.commit.assert_not_awaited()
+
+
 def test_ticket_response_includes_analysis(client: TestClient, session: AsyncMock) -> None:
-    ticket = make_ticket(analysis="Causa raíz probable", status=TicketStatus.ESCALATED)
+    ticket = make_ticket(analysis="Probable root cause", status=TicketStatus.ESCALATED)
     session.get.return_value = ticket
 
     body = client.get(f"/api/v1/tickets/{ticket.id}").json()
 
-    assert body["analysis"] == "Causa raíz probable"
+    assert body["analysis"] == "Probable root cause"
     assert body["status"] == "escalated"
 
 

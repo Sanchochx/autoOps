@@ -35,19 +35,19 @@ others_blocked()     { ! runuser -u nobody -- ls "$APP_DIR"; }
 umask_027()          { grep -Eq '^UMASK[[:space:]]+027$' /etc/login.defs; }
 pwquality_minlen()   { grep -Eq "^minlen = ${PWQUALITY_MINLEN}$" /etc/security/pwquality.conf.d/10-autoops.conf; }
 
-check "root tiene la contraseña bloqueada" root_locked
-check "${ADMIN_USER} tiene contraseña usable" admin_has_password
-check "${ADMIN_USER} pertenece al grupo sudo" admin_in_sudo
-check "sudo de ${ADMIN_USER} exige contraseña (sin NOPASSWD)" admin_sudo_asks_pw
-check "${ADMIN_USER} no pertenece al grupo docker" admin_not_docker
+check "root has a locked password" root_locked
+check "${ADMIN_USER} has a usable password" admin_has_password
+check "${ADMIN_USER} is in the sudo group" admin_in_sudo
+check "sudo for ${ADMIN_USER} requires a password (no NOPASSWD)" admin_sudo_asks_pw
+check "${ADMIN_USER} is not in the docker group" admin_not_docker
 check "${SERVICE_USER} tiene UID:GID ${SERVICE_UID}:${SERVICE_GID}" svc_ids
 check "${SERVICE_USER} usa /usr/sbin/nologin" svc_shell
-check "${SERVICE_USER} tiene home en ${APP_DIR}" svc_home
-check "${SERVICE_USER} tiene la contraseña bloqueada" svc_locked
-check "${SERVICE_USER} no pertenece a otros grupos (salvo docker)" svc_no_extra_groups
+check "${SERVICE_USER} has its home in ${APP_DIR}" svc_home
+check "${SERVICE_USER} has a locked password" svc_locked
+check "${SERVICE_USER} is in no other groups (except docker)" svc_no_extra_groups
 check "${APP_DIR} es ${SERVICE_USER}:${SERVICE_USER} 750" app_dir_perms
-check "${APP_DIR}/.env (si existe) es ${SERVICE_USER}:${SERVICE_USER} 600" env_perms
-check "un usuario sin privilegios no lee ${APP_DIR}" others_blocked
+check "${APP_DIR}/.env (if it exists) is ${SERVICE_USER}:${SERVICE_USER} 600" env_perms
+check "an unprivileged user cannot read ${APP_DIR}" others_blocked
 check "UMASK 027 en /etc/login.defs" umask_027
 check "pwquality exige minlen ${PWQUALITY_MINLEN}" pwquality_minlen
 

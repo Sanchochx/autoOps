@@ -26,19 +26,19 @@ SSH_PORT="$(resolve_ssh_port)"
 
 # --- Anti-lockout guards (before touching anything) ---------------------------------
 [[ -n "$(ss -H -ltn "sport = :${SSH_PORT}")" ]] \
-  || die "Nada escucha en el puerto ${SSH_PORT}: habilitar UFW cortaría el acceso. Revisa SSH_PORT."
+  || die "Nothing listens on port ${SSH_PORT}: enabling UFW would cut off access. Check SSH_PORT."
 if [[ -n $ADMIN_CIDR && -n ${SSH_CONNECTION:-} ]]; then
   client_ip="${SSH_CONNECTION%% *}"
   python3 -I -c '
 import ipaddress, sys
 sys.exit(0 if ipaddress.ip_address(sys.argv[1]) in ipaddress.ip_network(sys.argv[2], strict=False) else 1)
 ' "$client_ip" "$ADMIN_CIDR" \
-    || die "Tu sesión SSH actual (${client_ip}) no está en ADMIN_CIDR=${ADMIN_CIDR}: te quedarías sin acceso nuevo."
+    || die "Your current SSH session (${client_ip}) is not in ADMIN_CIDR=${ADMIN_CIDR}: you would lose new access."
 fi
 
 mapfile -t wanted < <(expected_ufw_rules "$SSH_PORT" "$ADMIN_CIDR" $UFW_WEB_PORTS)
 if [[ ${UFW_DRY_RUN:-0} == 1 ]]; then
-  log_info "DRY RUN: se aplicaría deny incoming / allow outgoing / deny routed, logging low y:"
+  log_info "DRY RUN: would apply deny incoming / allow outgoing / deny routed, logging low and:"
   printf '  %s\n' "${wanted[@]}"
   exit 0
 fi
@@ -77,11 +77,11 @@ ufw logging low >/dev/null
 # Verify the SSH rule exists before enabling; otherwise abort.
 added_now="$(added_ufw_rules)"
 grep -qxF "${wanted[0]}" <<<"$added_now" \
-  || die "La regla SSH '${wanted[0]}' no quedó registrada; UFW NO se habilita para no bloquearte."
+  || die "The SSH rule '${wanted[0]}' was not registered; UFW is NOT enabled so you do not get locked out."
 
 if ((!was_active)); then
   ufw --force enable >/dev/null
-  log_change "UFW habilitado (SSH ${SSH_PORT}/tcp ya permitido)"
+  log_change "UFW enabled (SSH ${SSH_PORT}/tcp already allowed)"
 fi
 [[ -d /run/systemd/system ]] && systemctl enable ufw >/dev/null 2>&1 || true
 
@@ -89,8 +89,8 @@ after="$(added_ufw_rules | sort)"
 [[ $before == "$after" ]] || log_change "reglas UFW actualizadas"
 
 if [[ -z $ADMIN_CIDR ]]; then
-  log_warn "SSH abierto a cualquier origen (con rate limit). Define ADMIN_CIDR para restringirlo."
+  log_warn "SSH is open to any source (rate limited). Set ADMIN_CIDR to restrict it."
 fi
-log_warn "UFW no filtra puertos publicados por Docker (US-NET-002). Si ya usas banaction=nftables, vuelve a ejecutar 30_fail2ban.sh para pasar a 'ufw'."
+log_warn "UFW does not filter ports published by Docker (US-NET-002). If you already use banaction=nftables, run 30_fail2ban.sh again to switch to 'ufw'."
 ufw status verbose
-log_info "40_ufw.sh finalizado."
+log_info "40_ufw.sh finished."

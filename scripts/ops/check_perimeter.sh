@@ -19,7 +19,7 @@ HOST=''
 CA=''
 while (($#)); do
   case $1 in
-    --ca) [[ $# -ge 2 ]] || { echo "--ca requiere una ruta." >&2; exit 1; }; CA=$2; shift ;;
+    --ca) [[ $# -ge 2 ]] || { echo "--ca requires a path." >&2; exit 1; }; CA=$2; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) echo "Argumento desconocido '$1'." >&2; exit 1 ;;
     *) HOST=$1 ;;
@@ -41,21 +41,21 @@ report() { # report <ok|fail> <description>
 tcp_open() { timeout "$TIMEOUT" bash -c "exec 3<>/dev/tcp/$HOST/$1" 2>/dev/null; }
 
 for port in "$HTTP_PORT" "$HTTPS_PORT"; do
-  if tcp_open "$port"; then report ok "puerto ${port} abierto (proxy)"; else report fail "puerto ${port} cerrado: el proxy debe responder"; fi
+  if tcp_open "$port"; then report ok "port ${port} open (proxy)"; else report fail "port ${port} closed: the proxy must answer"; fi
 done
 
 resolve=(--resolve "${DOMAIN}:${HTTP_PORT}:${HOST}" --resolve "${DOMAIN}:${HTTPS_PORT}:${HOST}")
 redirect="$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 10 "${resolve[@]}" "http://${DOMAIN}:${HTTP_PORT}/" || true)"
-if [[ $redirect == 30[1278]\ https://* ]]; then report ok "http redirige a https (${redirect})"; else report fail "http no redirige a https (${redirect:-sin respuesta})"; fi
+if [[ $redirect == 30[1278]\ https://* ]]; then report ok "http redirects to https (${redirect})"; else report fail "http does not redirect to https (${redirect:-no response})"; fi
 
 tls_args=("${resolve[@]}")
 [[ -z $CA ]] || tls_args+=(--cacert "$CA")
 status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${tls_args[@]}" "https://${DOMAIN}:${HTTPS_PORT}/" || true)"
-if [[ $status == 200 ]]; then report ok "https://${DOMAIN}:${HTTPS_PORT}/ responde 200${CA:+ (cadena verificada con la CA local)}"; else report fail "https no responde 200 (código: ${status:-sin respuesta}${CA:+; ¿ca.crt correcto?})"; fi
+if [[ $status == 200 ]]; then report ok "https://${DOMAIN}:${HTTPS_PORT}/ answers 200${CA:+ (chain verified with the local CA)}"; else report fail "https does not answer 200 (code: ${status:-no response}${CA:+; is ca.crt correct?})"; fi
 
 for port in $CLOSED_PORTS; do
-  if tcp_open "$port"; then report fail "puerto ${port} ACCESIBLE desde fuera"; else report ok "puerto ${port} cerrado o filtrado"; fi
+  if tcp_open "$port"; then report fail "port ${port} REACHABLE from outside"; else report ok "port ${port} closed or filtered"; fi
 done
 
-if ((failed > 0)); then printf '\nFAIL: %d control(es) del perímetro fallaron.\n' "$failed" >&2; exit 1; fi
-printf '\nOK: el perímetro de %s es el diseñado.\n' "$HOST"
+if ((failed > 0)); then printf '\nFAIL: %d perimeter check(s) failed.\n' "$failed" >&2; exit 1; fi
+printf '\nOK: the perimeter of %s is the designed one.\n' "$HOST"

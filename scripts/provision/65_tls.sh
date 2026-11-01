@@ -23,29 +23,29 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/tls.sh"
 require_root
 APP_DIR="${APP_DIR:-/opt/autoops}"
 APP_ENV_FILE="${APP_ENV_FILE:-${APP_DIR}/.env}"
-[[ $APP_DIR == /* && $APP_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "APP_DIR inválido: '${APP_DIR}'."
-[[ -f $APP_ENV_FILE ]] || die "No existe ${APP_ENV_FILE}."
+[[ $APP_DIR == /* && $APP_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "Invalid APP_DIR: '${APP_DIR}'."
+[[ -f $APP_ENV_FILE ]] || die "${APP_ENV_FILE} does not exist."
 
 TLS_MODE="$(env_file_value "$APP_ENV_FILE" TLS_MODE)"
 case $TLS_MODE in
   selfsigned) ;;
   acme)
-    log_info "TLS_MODE=acme: Traefik pide el certificado a Let's Encrypt; no se crea CA local."
+    log_info "TLS_MODE=acme: Traefik requests the certificate from Let's Encrypt; no local CA is created."
     exit 0
     ;;
-  *) die "TLS_MODE es obligatorio y debe ser 'selfsigned' o 'acme' (valor actual: '${TLS_MODE}'). Defínelo en ${APP_ENV_FILE}." ;;
+  *) die "TLS_MODE is required and must be 'selfsigned' or 'acme' (current value: '${TLS_MODE}'). Set it in ${APP_ENV_FILE}." ;;
 esac
 
 DOMAIN="$(env_file_value "$APP_ENV_FILE" DOMAIN)"
-[[ -n $DOMAIN ]] || die "DOMAIN es obligatorio en ${APP_ENV_FILE} con TLS_MODE=selfsigned."
+[[ -n $DOMAIN ]] || die "DOMAIN is required in ${APP_ENV_FILE} with TLS_MODE=selfsigned."
 TLS_DIR="$(env_file_value "$APP_ENV_FILE" TLS_DIR)"
 TLS_DIR="${TLS_DIR:-${APP_DIR}/tls}"
 [[ $TLS_DIR == /* ]] || TLS_DIR="${APP_DIR}/${TLS_DIR#./}"
-[[ $TLS_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "TLS_DIR inválido: '${TLS_DIR}'."
+[[ $TLS_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "Invalid TLS_DIR: '${TLS_DIR}'."
 TLS_PROXY_UID="${TLS_PROXY_UID:-65532}"
 TLS_PROXY_GID="${TLS_PROXY_GID:-65532}"
-[[ $TLS_PROXY_UID =~ ^[0-9]+$ && $TLS_PROXY_GID =~ ^[0-9]+$ ]] || die "TLS_PROXY_UID/TLS_PROXY_GID deben ser numéricos."
-command -v openssl >/dev/null || die "openssl no está instalado."
+[[ $TLS_PROXY_UID =~ ^[0-9]+$ && $TLS_PROXY_GID =~ ^[0-9]+$ ]] || die "TLS_PROXY_UID/TLS_PROXY_GID must be numeric."
+command -v openssl >/dev/null || die "openssl is not installed."
 
 # Main host first; extras may be separated by spaces or commas.
 extras="$(env_file_value "$APP_ENV_FILE" TLS_EXTRA_SANS)"
@@ -55,10 +55,10 @@ tls_desired_sans "${names[@]}" >/dev/null   # validates every name before anythi
 install -d -m 755 -o root -g root "$TLS_DIR"
 tls_ensure_ca "$TLS_DIR"
 if tls_leaf_valid "$TLS_DIR" "${names[@]}"; then
-  log_info "Certificado de ${DOMAIN} vigente: sin cambios."
+  log_info "Certificate for ${DOMAIN} is valid: no changes."
 else
   tls_issue_leaf "$TLS_DIR" "${names[@]}"
 fi
 tls_enforce_perms "$TLS_DIR" "${TLS_PROXY_UID}:${TLS_PROXY_GID}"
 
-log_info "CA para importar en el navegador/SO: ${TLS_DIR}/ca/ca.crt"
+log_info "CA to import into the browser/OS: ${TLS_DIR}/ca/ca.crt"

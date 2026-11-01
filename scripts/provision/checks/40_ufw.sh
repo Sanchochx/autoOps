@@ -35,11 +35,11 @@ ssh_rule_ok() {
 
 check "ufw instalado" command -v ufw
 check "UFW activo" ufw_active
-check "UFW habilitado en el arranque" ufw_boot
-check "política por defecto: deny incoming / allow outgoing / deny routed" defaults_ok
-check "sshd escucha en ${SSH_PORT}" ssh_listening
-check "SSH ${SSH_PORT}/tcp permitido con rate limit${ADMIN_CIDR:+ solo desde ${ADMIN_CIDR}}" ssh_rule_ok
-check "reglas definidas = exactamente las esperadas" rules_exact
+check "UFW enabled at boot" ufw_boot
+check "default policy: deny incoming / allow outgoing / deny routed" defaults_ok
+check "sshd listens on ${SSH_PORT}" ssh_listening
+check "SSH ${SSH_PORT}/tcp allowed with rate limit${ADMIN_CIDR:+ only from ${ADMIN_CIDR}}" ssh_rule_ok
+check "defined rules = exactly the expected ones" rules_exact
 check "logging low" logging_ok
 
 log_info "Puertos web esperados: ${UFW_WEB_PORTS}."

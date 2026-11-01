@@ -27,11 +27,11 @@ describe('toActivity', () => {
     })
     expect(toActivity(ev('gateway'))?.phase).toBe('triage')
     expect(toActivity(ev('triage_node'))?.phase).toBe('investigating')
-    const saving = toActivity(ev('investigator_node', 'investigator: Posible saturación'))
-    expect(saving).toEqual({ phase: 'saving', note: 'Posible saturación' })
+    const saving = toActivity(ev('investigator_node', 'investigator: Possible saturation'))
+    expect(saving).toEqual({ phase: 'saving', note: 'Possible saturation' })
     expect(toActivity(ev('database'), saving ?? undefined)).toEqual({
       phase: 'done',
-      note: 'Posible saturación',
+      note: 'Possible saturation',
     })
     expect(toActivity(ev('error'))?.phase).toBe('failed')
     expect(toActivity(ev('other'))).toBeNull()

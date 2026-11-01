@@ -22,7 +22,7 @@ export function useClearTickets(): UseClearTickets {
       await refresh()
       return true
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'No se pudieron limpiar los tickets')
+      setError(err instanceof Error ? err.message : 'Could not clear the tickets')
       return false
     } finally {
       setClearing(false)

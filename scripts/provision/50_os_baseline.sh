@@ -30,12 +30,12 @@ DISABLE_SERVICES="${DISABLE_SERVICES-avahi-daemon cups cups-browsed rpcbind blue
 # ca-certificates/curl/gnupg: prerequisites of Docker's apt repository (US-SYS-002).
 REQUIRED_PACKAGES="ca-certificates curl gnupg jq chrony unattended-upgrades"
 
-[[ $AUTO_REBOOT_TIME =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ || -z $AUTO_REBOOT_TIME ]] || die "AUTO_REBOOT_TIME debe ser HH:MM."
-[[ $APT_UPGRADE =~ ^[01]$ ]] || die "APT_UPGRADE debe ser 0 o 1."
+[[ $AUTO_REBOOT_TIME =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ || -z $AUTO_REBOOT_TIME ]] || die "AUTO_REBOOT_TIME must be HH:MM."
+[[ $APT_UPGRADE =~ ^[01]$ ]] || die "APT_UPGRADE must be 0 or 1."
 for var in EXTRA_PACKAGES DISABLE_SERVICES; do
-  [[ ${!var} =~ ^[A-Za-z0-9.+:_[:space:]-]*$ ]] || die "${var} contiene caracteres no válidos."
+  [[ ${!var} =~ ^[A-Za-z0-9.+:_[:space:]-]*$ ]] || die "${var} contains invalid characters."
 done
-timedatectl list-timezones | grep -qxF "$TIMEZONE" || die "TIMEZONE inválida: '${TIMEZONE}'."
+timedatectl list-timezones | grep -qxF "$TIMEZONE" || die "Invalid TIMEZONE: '${TIMEZONE}'."
 
 has_systemd() { [[ -d /run/systemd/system ]]; }
 export DEBIAN_FRONTEND=noninteractive
@@ -69,7 +69,7 @@ if has_systemd; then
     done
   done
 fi
-log_info "Puertos en escucha (revisa que solo quede SSH y servicios internos de systemd):"
+log_info "Listening ports (check that only SSH and internal systemd services remain):"
 ss -tulpn || true
 
 # --- AC-2: automatic security patches ---------------------------------------------
@@ -104,8 +104,8 @@ fi
 if has_systemd; then
   systemctl enable --now chrony >/dev/null 2>&1
   if ! chronyc tracking 2>/dev/null | grep -q 'Leap status *: Normal'; then
-    log_info "Esperando sincronización de chrony (hasta ~30 s)..."
-    timeout 40 chronyc waitsync 3 >/dev/null 2>&1 || log_warn "chrony aún no está sincronizado (¿hay salida a Internet/NTP?)."
+    log_info "Waiting for chrony to sync (up to ~30 s)..."
+    timeout 40 chronyc waitsync 3 >/dev/null 2>&1 || log_warn "chrony is not synchronized yet (is there Internet/NTP access?)."
   fi
 fi
 
@@ -114,7 +114,7 @@ ensure_file "$SYSCTL_DST" "$(cat "$SYSCTL_SRC")"
 chmod 644 "$SYSCTL_DST"
 if ((FILE_CHANGED)); then
   sysctl --system >/dev/null
-  log_change "parámetros de kernel aplicados (sysctl --system)"
+  log_change "kernel parameters applied (sysctl --system)"
 fi
 
-log_info "50_os_baseline.sh finalizado."
+log_info "50_os_baseline.sh finished."

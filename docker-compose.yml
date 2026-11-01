@@ -24,9 +24,9 @@ services:
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     environment:
-      POSTGRES_USER: ${DB_USER:?define DB_USER en .env}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD en .env}
-      POSTGRES_DB: ${DB_NAME:?define DB_NAME en .env}
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -46,7 +46,7 @@ services:
     read_only: true
     environment:
       MCP_LOGS_HOST: 0.0.0.0
-      MCP_LOGS_PORT: ${MCP_LOGS_PORT:?define MCP_LOGS_PORT en .env}
+      MCP_LOGS_PORT: ${MCP_LOGS_PORT:?set MCP_LOGS_PORT in .env}
     expose: ["${MCP_LOGS_PORT}"]   # only visible in mcp_net; no `ports:`
     healthcheck:
       test:
@@ -71,21 +71,21 @@ services:
     tmpfs: [/tmp]
     environment: &gateway_env
       HOST: 0.0.0.0
-      PORT: ${PORT:?define PORT en .env}
+      PORT: ${PORT:?set PORT in .env}
       # uvicorn trusts X-Forwarded-* from these peers. Safe: the gateway publishes no port and is
       # reachable only from edge_net (the proxy), so any redirect it issues keeps https.
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
       DEBUG: ${DEBUG:-False}
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      SECRET_KEY: ${SECRET_KEY:?define SECRET_KEY en .env}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
       # Single origin behind the proxy: the dashboard is served from the public URL.
-      CORS_ALLOWED_ORIGINS: ${PUBLIC_SCHEME:-http}://${DOMAIN:?define DOMAIN en .env}
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_SCHEME:-http}://${DOMAIN:?set DOMAIN in .env}
       WS_BROADCAST_TIMEOUT_SECONDS: ${WS_BROADCAST_TIMEOUT_SECONDS:-2}
       # The `postgres` host is the service name on backend_net.
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       MCP_LOGS_SERVER_URL: http://mcp-logs:${MCP_LOGS_PORT}/sse
-      AI_MODEL_NAME: ${AI_MODEL_NAME:?define AI_MODEL_NAME en .env}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?define OPENAI_API_KEY en .env}
+      AI_MODEL_NAME: ${AI_MODEL_NAME:?set AI_MODEL_NAME in .env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env}
       # Optional: another OpenAI-compatible endpoint; empty = default OpenAI endpoint.
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -151,10 +151,10 @@ services:
     read_only: true
     tmpfs: [/tmp]
     environment:
-      DOMAIN: ${DOMAIN:?define DOMAIN en .env}
-      GATEWAY_PORT: ${PORT:?define PORT en .env}
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      GATEWAY_PORT: ${PORT:?set PORT in .env}
       HSTS_MAX_AGE_SECONDS: ${HSTS_MAX_AGE_SECONDS:-31536000}
-      TLS_MODE: ${TLS_MODE:?define TLS_MODE en .env (selfsigned | acme)}
+      TLS_MODE: ${TLS_MODE:?set TLS_MODE in .env (selfsigned | acme)}
       ACME_EMAIL: ${ACME_EMAIL:-}
       ACME_CA_SERVER: ${ACME_CA_SERVER:-}
     ports:

@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 DEFAULT_SEVERITY: Severity = "medium"
 
 TRIAGE_PROMPT = (
-    "Eres un agente de triaje SRE de nivel 1. Clasifica la severidad del "
-    "incidente descrito. Responde únicamente con una palabra: "
-    "low, medium, high o critical."
+    "You are a level 1 SRE triage agent. Classify the severity of the "
+    "described incident. Answer with a single word only: "
+    "low, medium, high or critical."
 )
 
 INVESTIGATOR_PROMPT = (
-    "Eres un agente investigador SRE. Dada la descripción de un incidente y su "
-    "severidad, resume las hipótesis de causa raíz más probables y qué "
-    "información técnica habría que consultar. Sé conciso."
+    "You are an SRE investigator agent. Given an incident description and its "
+    "severity, summarize the most likely root cause hypotheses and which "
+    "technical information should be checked. Be concise. Always answer in English."
 )
 
 # MCP client injection point: receives the state and returns technical
@@ -43,7 +43,7 @@ def parse_severity(raw_text: str) -> Severity:
     for severity in SEVERITIES:
         if severity in text:
             return severity
-    logger.warning("Severidad no reconocida %r; se usa %s", raw_text, DEFAULT_SEVERITY)
+    logger.warning("Unrecognized severity %r; using %s", raw_text, DEFAULT_SEVERITY)
     return DEFAULT_SEVERITY
 
 
@@ -55,12 +55,12 @@ def make_triage_node(model: BaseChatModel) -> Callable[[AgentState], dict]:
             [SystemMessage(content=TRIAGE_PROMPT), HumanMessage(content=state["description"])]
         )
         severity = parse_severity(str(response.content))
-        logger.info("Triaje ticket=%s severity=%s", state.get("ticket_id"), severity)
+        logger.info("Triage ticket=%s severity=%s", state.get("ticket_id"), severity)
         return {
             "severity": severity,
             "status": "triaged",
             "messages": [response],
-            "agent_notes": [f"triage: severidad asignada = {severity}"],
+            "agent_notes": [f"triage: severity assigned = {severity}"],
         }
 
     return triage_node
@@ -78,20 +78,20 @@ def make_investigator_node(
 
     def investigator_node(state: AgentState) -> dict:
         severity = state.get("severity", DEFAULT_SEVERITY)
-        context = context_provider(state) if context_provider else "sin contexto técnico"
+        context = context_provider(state) if context_provider else "no technical context"
         response = model.invoke(
             [
                 SystemMessage(content=INVESTIGATOR_PROMPT),
                 HumanMessage(
                     content=(
-                        f"Severidad: {severity}\n"
-                        f"Incidente: {state['description']}\n"
-                        f"Contexto técnico: {context}"
+                        f"Severity: {severity}\n"
+                        f"Incident: {state['description']}\n"
+                        f"Technical context: {context}"
                     )
                 ),
             ]
         )
-        logger.info("Investigación ticket=%s severity=%s", state.get("ticket_id"), severity)
+        logger.info("Investigation ticket=%s severity=%s", state.get("ticket_id"), severity)
         return {
             "status": "investigated",
             "analysis": str(response.content),

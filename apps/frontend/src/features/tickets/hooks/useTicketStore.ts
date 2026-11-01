@@ -30,7 +30,7 @@ export const useTicketStore = create<TicketState>((set, get) => ({
       // Keep the last good data on a failed poll; only surface the error when there is none.
       set({
         status: get().tickets.length > 0 ? 'ready' : 'error',
-        error: error instanceof Error ? error.message : 'No se pudieron cargar los tickets',
+        error: error instanceof Error ? error.message : 'Could not load the tickets',
       })
     }
   },

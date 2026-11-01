@@ -25,7 +25,7 @@
 - **Network:** UFW deny-by-default with the SSH rule added before enabling; `DOCKER-USER` rules so ports published by Docker respect the firewall.
 - **Runtime:** OS baseline (unattended upgrades, sysctl), Docker Engine from the official repo with a hardened `daemon.json`, `autoops.service` (starts the stack at boot) and a manual `autoops-migrate.service`.
 - **Backups:** `pg_dump` custom format every `BACKUP_SCHEDULE`, rotated by `BACKUP_RETENTION_DAYS`, failures surface as a `failed` unit; `restore_postgres.sh` is transactional and requires a terminal plus typing `CONFIRMAR`.
-- **Provisioning:** `bootstrap.sh` (dependency order, preflight, stops on first failure, reports "Sin cambios" on a no-op re-run) and `verify.sh` (all `checks/*.sh`, OK/FAIL table, exit 1 on any failure).
+- **Provisioning:** `bootstrap.sh` (dependency order, preflight, stops on first failure, reports "No changes" on a no-op re-run) and `verify.sh` (all `checks/*.sh`, OK/FAIL table, exit 1 on any failure).
 
 ## 🔎 Findings During Validation
 

@@ -3,7 +3,7 @@ import { useId, useState, type ChangeEvent, type SyntheticEvent } from 'react'
 import { useCreateTicket } from '../hooks/useCreateTicket'
 
 const FIELD_CLASS =
-  'w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:bg-slate-100'
+  'w-full rounded-md border border-line bg-canvas px-3.5 py-2.5 text-xs text-ink placeholder:text-[#64748b] transition-all duration-200 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60'
 
 export function TicketForm(): React.JSX.Element {
   const titleId = useId()
@@ -22,14 +22,17 @@ export function TicketForm(): React.JSX.Element {
   }
 
   return (
-    <section aria-labelledby="ticket-form-title" className="rounded-lg bg-white p-4 shadow-sm">
-      <h2 id="ticket-form-title" className="mb-3 text-sm font-semibold text-slate-900">
-        Nuevo ticket
-      </h2>
-      <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-3">
+    <section aria-labelledby="ticket-form-title" className="overflow-hidden rounded-lg border border-line bg-surface shadow-card">
+      <div className="flex items-center gap-2.5 border-b border-line px-6 py-4">
+        <span aria-hidden="true" className="size-2.5 rounded-full bg-primary" />
+        <h2 id="ticket-form-title" className="text-lg font-semibold text-ink">
+          New ticket
+        </h2>
+      </div>
+      <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-5 p-6">
         <div>
-          <label htmlFor={titleId} className="mb-1 block text-sm font-medium text-slate-700">
-            Título
+          <label htmlFor={titleId} className="mb-1.5 block text-xs font-medium tracking-wide text-muted uppercase">
+            Title
           </label>
           <input
             id={titleId}
@@ -43,8 +46,8 @@ export function TicketForm(): React.JSX.Element {
           />
         </div>
         <div>
-          <label htmlFor={descriptionId} className="mb-1 block text-sm font-medium text-slate-700">
-            Descripción
+          <label htmlFor={descriptionId} className="mb-1.5 block text-xs font-medium tracking-wide text-muted uppercase">
+            Description
           </label>
           <textarea
             id={descriptionId}
@@ -59,19 +62,19 @@ export function TicketForm(): React.JSX.Element {
         <button
           type="submit"
           disabled={pending}
-          className="flex items-center justify-center gap-2 rounded bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
+          className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold tracking-wide text-white transition-all duration-200 hover:bg-blue-500 hover:shadow-md hover:shadow-primary/30 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <Send aria-hidden="true" className="size-4" />
-          {pending ? 'Creando…' : 'Crear ticket'}
+          {pending ? 'Creating…' : 'Create ticket'}
         </button>
         {status === 'error' && error && (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="rounded-lg border border-danger/50 bg-danger/10 px-3.5 py-2.5 text-xs font-medium text-red-300">
             {error}
           </p>
         )}
         {status === 'success' && (
-          <p role="status" className="text-sm text-emerald-800">
-            Ticket creado. El agente de triaje lo está analizando.
+          <p role="status" className="rounded-lg border border-success/50 bg-success/10 px-3.5 py-2.5 text-xs font-medium text-emerald-300">
+            Ticket created. The triage agent is analyzing it.
           </p>
         )}
       </form>

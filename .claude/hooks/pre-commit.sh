@@ -47,7 +47,7 @@ run_check() {
   if "$@" 2>&1; then
     echo "  ✓ $label OK"
   else
-    echo "  ✗ $label falló"
+    echo "  ✗ $label failed"
     ERRORS=$((ERRORS + 1))
   fi
 }
@@ -101,7 +101,7 @@ else
   if stack_enabled go && [ -f go.mod ] && command -v go &> /dev/null; then
     begin_stack "Go"
     run_check "Tests (go test)" go test ./...
-    run_check "Análisis (go vet)" go vet ./...
+    run_check "Analysis (go vet)" go vet ./...
   fi
 
   # ─── Rust ───────────────────────────────────────────────────
@@ -154,27 +154,27 @@ fi
 
 # ─── Project's own script (optional) ───────────────────
 if [ -f .claude/hooks/project-checks.sh ]; then
-  begin_stack "checks del proyecto"
+  begin_stack "project checks"
   run_check "project-checks.sh" bash .claude/hooks/project-checks.sh
 fi
 
 if [ "$DETECTED" -eq 0 ]; then
   echo ""
-  echo "▶ Ningún stack reconocido — se omiten tests y lint."
+  echo "▶ No recognized stack — skipping tests and lint."
   echo "  (Define HOOK_TEST_CMD / HOOK_LINT_CMD o .claude/hooks/project-checks.sh)"
 fi
 
 # ─── Hardcoded credentials (any language) ──────────
 # Checks only the lines ADDED in the commit, ignoring tests/examples.
 echo ""
-echo "▶ Buscando credenciales hardcodeadas en cambios staged..."
+echo "▶ Looking for hardcoded credentials in staged changes..."
 SECRET_RE="(password|passwd|secret|api[_-]?key|access[_-]?key|auth[_-]?token|private[_-]?key)[\"']?[[:space:]]*[:=][[:space:]]*[\"'][^\"'\$\{][^\"']{3,}[\"']|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{36,}"
 LEAKS=$(git diff --cached -U0 --no-color \
   -- . ':!*test*' ':!*spec*' ':!*example*' ':!*sample*' ':!*.md' ':!*.lock' ':!*lock.json' \
   2>/dev/null | grep -E '^\+[^+]' | grep -Eiv 'os\.environ|process\.env|getenv|\$\{' | grep -Ei "$SECRET_RE")
 if [ -n "$LEAKS" ]; then
   echo "$LEAKS" | cut -c1-160
-  echo "  ✗ Posibles credenciales hardcodeadas (usa variables de entorno)"
+  echo "  ✗ Possible hardcoded credentials (use environment variables)"
   ERRORS=$((ERRORS + 1))
 else
   echo "  ✓ Sin credenciales hardcodeadas"
@@ -184,13 +184,13 @@ fi
 echo ""
 echo "======================================="
 if [ $ERRORS -eq 0 ]; then
-  echo "  ✓ Todo OK — procediendo con el commit"
+  echo "  ✓ All OK — proceeding with the commit"
   echo "======================================="
   echo ""
   exit 0
 else
   echo "  ✗ $ERRORS problema(s) encontrado(s)"
-  echo "  Corrige los errores antes de commitear."
+  echo "  Fix the errors before committing."
   echo "======================================="
   echo ""
   exit 2

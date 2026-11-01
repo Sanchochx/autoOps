@@ -28,7 +28,7 @@ export function useCreateTicket(): UseCreateTicket {
         return true
       } catch (err: unknown) {
         setStatus('error')
-        setError(err instanceof Error ? err.message : 'No se pudo crear el ticket')
+        setError(err instanceof Error ? err.message : 'Could not create the ticket')
         return false
       }
     },

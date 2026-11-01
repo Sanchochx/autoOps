@@ -41,8 +41,8 @@ if dir_set; then
   check "BACKUP_DIR existe" dir_exists
   if dir_exists; then
     check "BACKUP_DIR es ${SERVICE_USER}:${SERVICE_USER} 0700" dir_perms
-    check "BACKUP_DIR fuera de /var/lib/docker (no en postgres_data)" outside_volume
-    check "dumps existentes con modo 0600" dumps_private
+    check "BACKUP_DIR outside /var/lib/docker (not in postgres_data)" outside_volume
+    check "existing dumps have mode 0600" dumps_private
   fi
 fi
 check "BACKUP_RETENTION_DAYS es un entero >= 1" retention_ok
@@ -50,11 +50,11 @@ check "backup_postgres.sh y restore_postgres.sh ejecutables" scripts_exec
 check "autoops-backup.service y .timer instalados" installed
 if installed; then
   check "unidades pasan systemd-analyze verify" unit_verifies
-  check "timer con Persistent=true" persistent
+  check "timer with Persistent=true" persistent
 fi
 check "autoops-backup.timer habilitado" enabled
 check "autoops-backup.timer activo" active
-check "autoops-backup.timer con próxima ejecución programada" scheduled
-check "última ejecución de autoops-backup.service no está en failed" not_failed
+check "autoops-backup.timer has a next run scheduled" scheduled
+check "last run of autoops-backup.service is not failed" not_failed
 
 check_finish

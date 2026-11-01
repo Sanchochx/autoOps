@@ -38,7 +38,7 @@ no_extra_listeners() {
     [[ -z $addr ]] && continue
     case $addr in 127.*|\[::1\]*) continue ;; esac
     port="${addr##*:}"
-    [[ $allowed == *" ${port} "* ]] || { echo "puerto inesperado: ${addr}" >&2; return 1; }
+    [[ $allowed == *" ${port} "* ]] || { echo "unexpected port: ${addr}" >&2; return 1; }
   done <<<"$listeners"
 }
 uu_dryrun()      { unattended-upgrade --dry-run; }
@@ -63,7 +63,7 @@ sysctl_values() {
   while IFS= read -r line; do
     [[ $line =~ ^-?([a-z0-9._]+)[[:space:]]*=[[:space:]]*(.+)$ ]] || continue
     key="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
-    actual="$(sysctl -n "$key" 2>/dev/null)" || { [[ $line == -* ]] && continue; echo "falta ${key}" >&2; rc=1; continue; }
+    actual="$(sysctl -n "$key" 2>/dev/null)" || { [[ $line == -* ]] && continue; echo "missing ${key}" >&2; rc=1; continue; }
     [[ $actual == "$value" ]] || { echo "${key}: esperado ${value}, actual ${actual}" >&2; rc=1; }
   done <"$SYSCTL_DST"
   return $rc
@@ -71,17 +71,17 @@ sysctl_values() {
 
 check "paquetes base instalados" pkgs_installed
 check "servicios innecesarios deshabilitados" svc_disabled
-check "solo SSH (${SSH_PORT}) y web (${WEB_PORTS})${EXPECTED_TCP_PORTS:+ y ${EXPECTED_TCP_PORTS}} escuchan fuera de loopback" no_extra_listeners
+check "only SSH (${SSH_PORT}) and web (${WEB_PORTS})${EXPECTED_TCP_PORTS:+ and ${EXPECTED_TCP_PORTS}} listen outside loopback" no_extra_listeners
 check "unattended-upgrade --dry-run funciona" uu_dryrun
 check "apt-daily-upgrade.timer activo" uu_timer
-check "actualización automática periódica habilitada" uu_periodic
-check "unattended-upgrades solo en el canal de seguridad" uu_sec_only
-check "política de reinicio automático acorde a AUTO_REBOOT_TIME" uu_reboot
+check "periodic automatic update enabled" uu_periodic
+check "unattended-upgrades only on the security channel" uu_sec_only
+check "automatic reboot policy matches AUTO_REBOOT_TIME" uu_reboot
 check "chrony activo" chrony_active
 check "chrony sincronizado (Leap status: Normal)" chrony_synced
 check "zona horaria ${TIMEZONE}" tz_ok
-check "99-autoops.conf coincide con infra/sysctl" sysctl_file
-check "sysctl no toca ip_forward (Docker lo necesita)" no_ip_forward
+check "99-autoops.conf matches infra/sysctl" sysctl_file
+check "sysctl does not touch ip_forward (Docker needs it)" no_ip_forward
 check "valores sysctl efectivos = esperados" sysctl_values
 
 check_finish

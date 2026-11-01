@@ -67,7 +67,7 @@ function ticketsUrl(): string {
 
 function requireTicket(value: unknown): Ticket {
   const ticket = toTicket(value)
-  if (!ticket) throw new ApiError(502, 'Respuesta inválida del servidor')
+  if (!ticket) throw new ApiError(502, 'Invalid response from the server')
   return ticket
 }
 
@@ -88,10 +88,16 @@ export async function deleteAllTickets(signal?: AbortSignal): Promise<void> {
   if (!response.ok) throw await errorFrom(response)
 }
 
+/** Deletes one ticket (irreversible). */
+export async function deleteTicket(id: string, signal?: AbortSignal): Promise<void> {
+  const response = await fetch(`${ticketsUrl()}/${encodeURIComponent(id)}`, { method: 'DELETE', signal })
+  if (!response.ok) throw await errorFrom(response)
+}
+
 export async function listTickets(signal?: AbortSignal): Promise<Ticket[]> {
   const response = await fetch(ticketsUrl(), { signal })
   if (!response.ok) throw await errorFrom(response)
   const body: unknown = await response.json()
-  if (!Array.isArray(body)) throw new ApiError(502, 'Respuesta inválida del servidor')
+  if (!Array.isArray(body)) throw new ApiError(502, 'Invalid response from the server')
   return body.map(requireTicket)
 }

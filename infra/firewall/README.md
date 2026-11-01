@@ -69,18 +69,18 @@ ports that must stay closed.
 Evidence (US-PROXY-003 AC-5), `check_perimeter.sh` against the VM at `10.0.2.15`:
 
 ```
-[ OK ]   puerto 80 abierto (proxy)
-[ OK ]   puerto 443 abierto (proxy)
+[ OK ]   port 80 open (proxy)
+[ OK ]   port 443 open (proxy)
 [ OK ]   http redirige a https (301 https://autoops.local/)
-[ OK ]   https://autoops.local:443/ responde 200 (cadena verificada con la CA local)
-[ OK ]   puerto 8000 cerrado o filtrado
-[ OK ]   puerto 3000 cerrado o filtrado
-[ OK ]   puerto 5432 cerrado o filtrado
-[ OK ]   puerto 5001 cerrado o filtrado
-[ OK ]   puerto 2375 cerrado o filtrado
-[ OK ]   puerto 2376 cerrado o filtrado
+[ OK ]   https://autoops.local:443/ answers 200 (chain verified with the local CA)
+[ OK ]   port 8000 closed or filtered
+[ OK ]   port 3000 closed or filtered
+[ OK ]   port 5432 closed or filtered
+[ OK ]   port 5001 closed or filtered
+[ OK ]   port 2375 closed or filtered
+[ OK ]   port 2376 closed or filtered
 
-OK: el perímetro de 10.0.2.15 es el diseñado.
+OK: the perimeter of 10.0.2.15 is the designed one.
 ```
 
 Caveats: `10.0.2.15` is VirtualBox's default NAT address of the guest, so confirm the run came from a different

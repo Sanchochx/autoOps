@@ -17,7 +17,7 @@ while (($#)); do
   case $1 in
     -q | --quiet) QUIET=1 ;;
     --env-file)
-      [[ $# -ge 2 ]] || die "--env-file requiere una ruta."
+      [[ $# -ge 2 ]] || die "--env-file requires a path."
       ENV_FILE=$2
       shift
       ;;
@@ -33,7 +33,7 @@ export APP_DIR="${APP_DIR:-/opt/autoops}"
 
 shopt -s nullglob
 CHECKS=("${HERE}"/checks/*.sh)
-((${#CHECKS[@]} > 0)) || die "No hay scripts en ${HERE}/checks/."
+((${#CHECKS[@]} > 0)) || die "No scripts in ${HERE}/checks/."
 
 OUT="$(mktemp)"
 trap 'rm -f "$OUT"' EXIT
@@ -59,7 +59,7 @@ for script in "${CHECKS[@]}"; do
     cat "$OUT"
   fi
   # Script-level failure with no failing control (e.g. require_var): rc != 0 and bad == 0.
-  if ((rc != 0 && bad == 0)); then printf '[FAIL]   %s terminó con código %d antes de completar sus controles\n' "$name" "$rc"; fi
+  if ((rc != 0 && bad == 0)); then printf '[FAIL]   %s exited with code %d before completing its checks\n' "$name" "$rc"; fi
 done
 
 printf '\n%-22s %-6s %s\n' "CONTROL" "ESTADO" "OK/FAIL"

@@ -35,7 +35,7 @@ class ConnectionManager:
             try:
                 await connection.send_text(message)
             except Exception:  # dropped connection: cleaned up without affecting the rest
-                logger.warning("Fallo al emitir; se descarta la conexión")
+                logger.warning("Failed to send; dropping the connection")
                 self.disconnect(connection)
 
 

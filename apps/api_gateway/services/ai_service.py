@@ -42,7 +42,7 @@ async def _emit(manager: ConnectionManager, ticket_id: UUID, node: str, message:
             manager.broadcast(_build_event(ticket_id, node, message)), timeout=timeout
         )
     except Exception:
-        logger.warning("No se pudo emitir el evento '%s' del ticket %s", node, ticket_id)
+        logger.warning("Could not emit event '%s' for ticket %s", node, ticket_id)
 
 
 def _describe_update(node: str, update: dict[str, Any]) -> str:
@@ -50,7 +50,7 @@ def _describe_update(node: str, update: dict[str, Any]) -> str:
     notes = update.get("agent_notes") or []
     if notes:
         return str(notes[-1])
-    return f"Nodo {node} finalizado"
+    return f"Node {node} finished"
 
 
 async def _revert_to_open(factory: Any, ticket_id: UUID) -> None:
@@ -66,7 +66,7 @@ async def _revert_to_open(factory: Any, ticket_id: UUID) -> None:
                 ticket.analysis = None
                 await session.commit()
     except Exception:
-        logger.exception("No se pudo devolver el ticket %s al estado open", ticket_id)
+        logger.exception("Could not return ticket %s to the open state", ticket_id)
 
 
 async def process_ticket_with_ai(
@@ -94,7 +94,7 @@ async def process_ticket_with_ai(
         async with factory() as session:
             ticket = await session.get(Ticket, ticket_id)
             if ticket is None:
-                logger.warning("Ticket %s no encontrado; se omite el triaje", ticket_id)
+                logger.warning("Ticket %s not found; skipping triage", ticket_id)
                 return
 
             description = ticket.description
@@ -102,7 +102,7 @@ async def process_ticket_with_ai(
             await session.commit()
 
             active_graph = graph or _load_compiled_graph()
-            await _emit(manager, ticket_id, "gateway", "Iniciando triaje")
+            await _emit(manager, ticket_id, "gateway", "Starting triage")
 
             state: dict[str, Any] = {}
             async for chunk in active_graph.astream(
@@ -113,11 +113,11 @@ async def process_ticket_with_ai(
                     state.update(update)
                     await _emit(manager, ticket_id, node, _describe_update(node, update))
 
-            await _emit(manager, ticket_id, "database", "Actualizando base de datos")
+            await _emit(manager, ticket_id, "database", "Updating database")
             # Re-read: the ticket may have been deleted while the agents were running.
             ticket = await session.get(Ticket, ticket_id, populate_existing=True)
             if ticket is None:
-                logger.warning("Ticket %s eliminado durante el triaje; se descarta", ticket_id)
+                logger.warning("Ticket %s deleted during triage; discarding the result", ticket_id)
                 return
             ticket.severity = TicketSeverity(state["severity"])
             ticket.analysis = state.get("analysis")
@@ -130,6 +130,6 @@ async def process_ticket_with_ai(
                 ticket.status.value,
             )
     except Exception:
-        logger.exception("Falló el procesamiento con IA del ticket %s", ticket_id)
+        logger.exception("AI processing failed for ticket %s", ticket_id)
         await _revert_to_open(factory, ticket_id)
-        await _emit(manager, ticket_id, "error", "El procesamiento con IA falló")
+        await _emit(manager, ticket_id, "error", "AI processing failed")

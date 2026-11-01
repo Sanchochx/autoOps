@@ -20,7 +20,7 @@ DEPLOY_INBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_INBOX_DIR)"; DEPLOY_INBOX_D
 DEPLOY_OUTBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_OUTBOX_DIR)"; DEPLOY_OUTBOX_DIR="${DEPLOY_OUTBOX_DIR:-${DEPLOY_STATE_DIR}/outbox}"
 
 if [[ -z "$(env_value "$APP_ENV_FILE" RUNNER_REPO_URL)" ]]; then
-  log_info "RUNNER_REPO_URL no está definido en ${APP_ENV_FILE}: se omiten los controles del runner."
+  log_info "RUNNER_REPO_URL is not set in ${APP_ENV_FILE}: skipping the runner checks."
   exit 0
 fi
 
@@ -61,26 +61,26 @@ token_file_safe() {
   (( (8#$(stat -c '%a' "$real") & 8#077) == 0 ))
 }
 
-check "autoops-runner.service instalada y coincide con la plantilla" unit_matches
+check "autoops-runner.service installed and matches the template" unit_matches
 check "autoops-runner.service pasa systemd-analyze verify" systemd-analyze verify "$UNIT"
-check "corre como ${SERVICE_USER} con Restart=always" bash -c "[[ \$(systemctl show autoops-runner -p User --value) == '${SERVICE_USER}' && \$(systemctl show autoops-runner -p Restart --value) == always ]]"
+check "runs as ${SERVICE_USER} with Restart=always" bash -c "[[ \$(systemctl show autoops-runner -p User --value) == '${SERVICE_USER}' && \$(systemctl show autoops-runner -p Restart --value) == always ]]"
 check "sandboxing activo (NoNewPrivileges, ProtectHome, PrivateTmp, ProtectSystem=full)" sandbox_on
-check "sin secretos en la unidad y sin archivo de token (Environment vacío)" no_secrets
-check "autoops-runner.service habilitada al arranque" enabled
+check "no secrets in the unit and no token file (empty Environment)" no_secrets
+check "autoops-runner.service enabled at boot" enabled
 check "autoops-runner.service activa" active
-check "contenedor del runner en ejecución" running
+check "runner container running" running
 if [[ -n $CID ]]; then
-  check "contenedor no privilegiado" not_privileged
-  check "contenedor con cap_drop ALL y sin cap_add" cap_drop_all
-  check "contenedor con no-new-privileges" no_new_privs
-  check "contenedor con sistema de archivos raíz de solo lectura" read_only_root
-  check "contenedor corre con un usuario no root" non_root_user
-  check "contenedor sin puertos publicados" no_ports
-  check "contenedor sin docker.sock" no_docker_sock
-  check "contenedor con solo dos montajes del host: inbox (rw) y outbox (ro) del deploy" only_spool_mounts
-  check "contenedor conectado solo a ${NETWORK}" only_runner_net
+  check "container is not privileged" not_privileged
+  check "container has cap_drop ALL and no cap_add" cap_drop_all
+  check "container has no-new-privileges" no_new_privs
+  check "container has a read-only root filesystem" read_only_root
+  check "container runs as a non-root user" non_root_user
+  check "container has no published ports" no_ports
+  check "container has no docker.sock" no_docker_sock
+  check "container has only two host mounts: deploy inbox (rw) and outbox (ro)" only_spool_mounts
+  check "container connected only to ${NETWORK}" only_runner_net
   check "runner conectado a GitHub (Listening for Jobs)" connected
 fi
-check "archivo del token fuera del repositorio y sin acceso para otros (o ya borrado)" token_file_safe
+check "token file outside the repository and inaccessible to others (or already deleted)" token_file_safe
 
 check_finish

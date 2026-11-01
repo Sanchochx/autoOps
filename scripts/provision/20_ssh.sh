@@ -42,35 +42,35 @@ if [[ "${1:-}" == "--confirm" ]]; then
     systemctl reset-failed "${ROLLBACK_UNIT}.service" 2>/dev/null || true
   fi
   rm -rf "$STATE_DIR"
-  log_info "Cambio confirmado: rollback automático cancelado."
+  log_info "Change confirmed: automatic rollback cancelled."
   exit 0
 fi
-[[ $# -eq 0 ]] || die "Argumento desconocido '$1' (solo se admite --confirm)."
+[[ $# -eq 0 ]] || die "Unknown argument '$1' (only --confirm is supported)."
 
 require_var ADMIN_SSH_PUBKEY_FILE
-[[ $SSH_ROLLBACK_MINUTES =~ ^[0-9]+$ ]] || die "SSH_ROLLBACK_MINUTES debe ser un entero."
-[[ -x /usr/sbin/sshd ]] || die "openssh-server no está instalado."
-id "$ADMIN_USER" >/dev/null 2>&1 || die "El usuario ${ADMIN_USER} no existe (ejecuta antes 10_users.sh)."
-in_group "$ADMIN_USER" sudo || die "${ADMIN_USER} no pertenece a sudo: no se endurece SSH sin una vía de administración."
+[[ $SSH_ROLLBACK_MINUTES =~ ^[0-9]+$ ]] || die "SSH_ROLLBACK_MINUTES must be an integer."
+[[ -x /usr/sbin/sshd ]] || die "openssh-server is not installed."
+id "$ADMIN_USER" >/dev/null 2>&1 || die "User ${ADMIN_USER} does not exist (run 10_users.sh first)."
+in_group "$ADMIN_USER" sudo || die "${ADMIN_USER} is not in the sudo group: SSH is not hardened without an administration path."
 grep -Eq '^Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config \
-  || die "/etc/ssh/sshd_config no incluye sshd_config.d/*.conf."
-/usr/sbin/sshd -t || die "La configuración actual de sshd ya es inválida; corrígela antes."
+  || die "/etc/ssh/sshd_config does not include sshd_config.d/*.conf."
+/usr/sbin/sshd -t || die "The current sshd configuration is already invalid; fix it first."
 
 if [[ -n $DEPLOY_SSH_PUBKEY_FILE ]]; then
-  [[ -n $DEPLOY_ALLOWED_FROM ]] || die "DEPLOY_ALLOWED_FROM es obligatoria con DEPLOY_SSH_PUBKEY_FILE (restricción from=)."
-  [[ $DEPLOY_ALLOWED_FROM =~ ^[0-9a-fA-F:./,]+$ ]] || die "DEPLOY_ALLOWED_FROM solo admite IP/CIDR separados por comas."
-  [[ $DEPLOY_USER =~ ^[a-z_][a-z0-9_-]*$ && $DEPLOY_USER != "$ADMIN_USER" ]] || die "DEPLOY_USER inválido."
+  [[ -n $DEPLOY_ALLOWED_FROM ]] || die "DEPLOY_ALLOWED_FROM is required with DEPLOY_SSH_PUBKEY_FILE (from= restriction)."
+  [[ $DEPLOY_ALLOWED_FROM =~ ^[0-9a-fA-F:./,]+$ ]] || die "DEPLOY_ALLOWED_FROM only accepts IPs/CIDRs separated by commas."
+  [[ $DEPLOY_USER =~ ^[a-z_][a-z0-9_-]*$ && $DEPLOY_USER != "$ADMIN_USER" ]] || die "Invalid DEPLOY_USER."
 fi
 
 # read_pubkey <file>: prints the ed25519 public key (one line) or aborts.
 read_pubkey() {
   local file=$1 line
-  [[ -r $file ]] || die "No se puede leer ${file}."
-  [[ "$(grep -c . "$file")" == 1 ]] || die "${file} debe contener exactamente una llave pública."
+  [[ -r $file ]] || die "Cannot read ${file}."
+  [[ "$(grep -c . "$file")" == 1 ]] || die "${file} must contain exactly one public key."
   line="$(grep . "$file")"
   [[ $line =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com)[[:space:]]+[A-Za-z0-9+/=]+ ]] \
-    || die "${file} no es una llave pública ed25519 (¿es la privada o de otro tipo?)."
-  ssh-keygen -l -f "$file" >/dev/null || die "${file} no es una llave válida."
+    || die "${file} is not an ed25519 public key (is it the private key or another type?)."
+  ssh-keygen -l -f "$file" >/dev/null || die "${file} is not a valid key."
   printf '%s' "$line"
 }
 
@@ -90,12 +90,12 @@ touch "$admin_auth"
 admin_blob="$(awk '{print $2}' <<<"$admin_key")"
 if ! grep -qF "$admin_blob" "$admin_auth"; then
   printf '%s\n' "$admin_key" >>"$admin_auth"
-  log_change "llave ed25519 añadida a ${admin_auth}"
+  log_change "ed25519 key added to ${admin_auth}"
 fi
 ensure_perms "$admin_auth" "${ADMIN_USER}:$(id -gn "$ADMIN_USER")" 600
 # StrictModes: sshd ignores keys if the home is writable by group or others.
 [[ "$(stat -c '%A' "$admin_home")" =~ ^d....-..-.$ ]] \
-  || die "${admin_home} admite escritura de grupo/otros: sshd rechazaría la llave (StrictModes)."
+  || die "${admin_home} is group/other writable: sshd would reject the key (StrictModes)."
 
 # --- AC-3: deploy account and key (restricted) -------------------------
 allow_users="$ADMIN_USER"
@@ -105,12 +105,12 @@ if [[ -n $DEPLOY_SSH_PUBKEY_FILE ]]; then
   if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash --comment "AutoOps CI/CD deploy" "$DEPLOY_USER"
     passwd --lock "$DEPLOY_USER" >/dev/null
-    log_change "creada la cuenta de despliegue ${DEPLOY_USER} (sin contraseña, sin sudo)"
+    log_change "created deploy account ${DEPLOY_USER} (no password, no sudo)"
   fi
   for forbidden in sudo docker; do
     if getent group "$forbidden" >/dev/null && in_group "$DEPLOY_USER" "$forbidden"; then
       gpasswd --delete "$DEPLOY_USER" "$forbidden" >/dev/null
-      log_change "${DEPLOY_USER} retirado del grupo ${forbidden}"
+      log_change "${DEPLOY_USER} removed from group ${forbidden}"
     fi
   done
   deploy_home="$(ensure_ssh_dir "$DEPLOY_USER")"
@@ -120,7 +120,7 @@ if [[ -n $DEPLOY_SSH_PUBKEY_FILE ]]; then
   ensure_perms "${deploy_home}/.ssh/authorized_keys" "${DEPLOY_USER}:${deploy_group}" 600
   allow_users="${ADMIN_USER} ${DEPLOY_USER}"
 else
-  log_info "Sin DEPLOY_SSH_PUBKEY_FILE: no se configura la llave de despliegue."
+  log_info "No DEPLOY_SSH_PUBKEY_FILE: the deploy key is not configured."
 fi
 
 # --- AC-2 / AC-1: sshd drop-in with automatic rollback ---------------------
@@ -129,7 +129,7 @@ ensure_file "$BANNER" "Acceso restringido a personal autorizado. La actividad es
 
 new_conf="$(sed "s/@ALLOW_USERS@/${allow_users}/" "${SSH_INFRA}/10-autoops.conf.tpl")"
 if [[ -f $CONF && "$(cat "$CONF")" == "$new_conf" ]]; then
-  log_info "${CONF} ya está al día."
+  log_info "${CONF} is already up to date."
 else
   install -d -m 700 "$STATE_DIR"
   rm -f "$STATE_DIR"/10-autoops.conf.prev "$STATE_DIR"/10-autoops.conf.absent
@@ -138,20 +138,20 @@ else
   chmod 644 "$CONF"
   if ! /usr/sbin/sshd -t; then
     "$ROLLBACK_BIN" || true
-    die "La nueva configuración no valida con 'sshd -t'; se restauró la anterior."
+    die "The new configuration does not pass 'sshd -t'; the previous one was restored."
   fi
   reload_sshd
-  log_change "aplicado ${CONF} (sshd recargado; las sesiones abiertas se mantienen)"
+  log_change "applied ${CONF} (sshd reloaded; open sessions are kept)"
 
   if has_systemd; then
     systemctl stop "${ROLLBACK_UNIT}.timer" 2>/dev/null || true
     systemctl reset-failed "${ROLLBACK_UNIT}.service" 2>/dev/null || true
     systemd-run --quiet --unit="$ROLLBACK_UNIT" --on-active="${SSH_ROLLBACK_MINUTES}m" "$ROLLBACK_BIN"
-    log_warn "ROLLBACK ARMADO: en ${SSH_ROLLBACK_MINUTES} min se revertirá este cambio."
+    log_warn "ROLLBACK ARMED: this change will be reverted in ${SSH_ROLLBACK_MINUTES} min."
   else
-    log_warn "Sin systemd: no se pudo armar el rollback automático; usa ${ROLLBACK_BIN} si hace falta."
+    log_warn "No systemd: could not arm the automatic rollback; use ${ROLLBACK_BIN} if needed."
   fi
-  log_warn "1) Abre OTRA terminal y entra con tu llave.  2) Si funciona: sudo ADMIN_USER=${ADMIN_USER} $0 --confirm"
+  log_warn "1) Open ANOTHER terminal and log in with your key.  2) If it works: sudo ADMIN_USER=${ADMIN_USER} $0 --confirm"
 fi
 
-log_info "20_ssh.sh finalizado."
+log_info "20_ssh.sh finished."
