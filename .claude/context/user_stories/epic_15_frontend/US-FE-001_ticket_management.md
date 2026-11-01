@@ -56,7 +56,7 @@
 
 ## Technical Notes
 
-- **Closing note (AC-5):** marked complete at the product owner's request; the browser walkthrough through Traefik was run by the product owner, not by Claude (Docker was not accessible to the Claude Code user). That walkthrough exposed that tickets stayed in "investigating" because the AI engine called OpenAI with `OPENAI_API_KEY` instead of DeepSeek; fixed in the same branch (`ai_engine/config.py` now requires `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL`, `.env.example`/Compose/CLAUDE.md updated). `VITE_TICKETS_POLL_INTERVAL_MS` is also a Compose/Dockerfile build-arg.
+- **Closing note (AC-5):** marked complete at the product owner's request; the browser walkthrough through Traefik was run by the product owner, not by Claude (Docker was not accessible to the Claude Code user). That walkthrough surfaced tickets stuck in "investigating" (LLM configuration, not the UI); the AI engine config now requires `OPENAI_API_KEY` explicitly (optional `OPENAI_BASE_URL`), with `.env.example`/Compose/CLAUDE.md updated. `VITE_TICKETS_POLL_INTERVAL_MS` is also a Compose/Dockerfile build-arg.
 
 - **Why `severity: "medium"` is sent at all:** the schema requires it and the router overrides it with `medium`; the agent's classification arrives later via the background task, which is what the list will display.
 - **Out of scope:** ticket detail view, editing/closing tickets, HITL approval UI, authentication, pagination/filtering (the list endpoint returns all tickets), new backend endpoints or WebSocket event types.

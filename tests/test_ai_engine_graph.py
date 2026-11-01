@@ -36,27 +36,31 @@ def test_compiled_graph_requires_model_env(monkeypatch: pytest.MonkeyPatch) -> N
         graph_module.compiled_graph
 
 
-_DEEPSEEK_ENV = {
-    "AI_MODEL_NAME": "deepseek-chat",
-    "DEEPSEEK_API_KEY": "sk-test",
-    "DEEPSEEK_BASE_URL": "https://api.deepseek.example/v1",
-}
+_OPENAI_ENV = {"AI_MODEL_NAME": "gpt-4o-mini", "OPENAI_API_KEY": "sk-test"}
 
 
-def test_build_chat_model_targets_deepseek() -> None:
+def test_build_chat_model_uses_openai_key_and_default_endpoint() -> None:
     from ai_engine.config import build_chat_model
 
-    model = build_chat_model(_DEEPSEEK_ENV)
+    model = build_chat_model(_OPENAI_ENV)
 
-    assert model.model_name == "deepseek-chat"  # type: ignore[attr-defined]
-    assert model.openai_api_base == "https://api.deepseek.example/v1"  # type: ignore[attr-defined]
+    assert model.model_name == "gpt-4o-mini"  # type: ignore[attr-defined]
     assert model.openai_api_key.get_secret_value() == "sk-test"  # type: ignore[attr-defined]
+    assert model.openai_api_base is None  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("missing", ["AI_MODEL_NAME", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"])
+def test_build_chat_model_accepts_custom_base_url() -> None:
+    from ai_engine.config import build_chat_model
+
+    model = build_chat_model({**_OPENAI_ENV, "OPENAI_BASE_URL": "https://llm.example/v1"})
+
+    assert model.openai_api_base == "https://llm.example/v1"  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("missing", ["AI_MODEL_NAME", "OPENAI_API_KEY"])
 def test_build_chat_model_requires_each_variable(missing: str) -> None:
     from ai_engine.config import build_chat_model
 
-    env = {k: v for k, v in _DEEPSEEK_ENV.items() if k != missing}
+    env = {k: v for k, v in _OPENAI_ENV.items() if k != missing}
     with pytest.raises(RuntimeError, match=missing):
         build_chat_model(env)

@@ -57,7 +57,7 @@
   A single template at the root with **all** project variables, grouped into commented sections, using only example values (never real secrets):
   - **Server & Gateway:** `PORT`, `DEBUG`, `ENVIRONMENT`, `SECRET_KEY`
   - **PostgreSQL Database:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
-  - **AI Models & Telemetry:** `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`
+  - **AI Models & Telemetry:** `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`
   - **MCP Servers:** `MCP_LOGS_SERVER_URL`, `MCP_DB_SERVER_URL`
   - **Frontend (Vite):** `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`
   - Each section states which service consumes the variables.
