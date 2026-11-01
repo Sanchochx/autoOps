@@ -467,10 +467,12 @@
 - **Dependencies:** US-CICD-003, US-SYS-004
 - **Acceptance Criteria:** 5
 
-#### [ ] US-CICD-005: CD Workflow, Smoke Test and Phase Closing *(to be written)*
+#### [ ] US-CICD-005: CD Workflow, Smoke Test and Phase Closing *(draft, pending validation)*
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-005_cd_workflow.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
 - **Dependencies:** US-CICD-004
+- **Acceptance Criteria:** 5
 - **Scope:** workflow chaining CI → build → deploy job on the self-hosted runner, post-deploy smoke test over HTTPS, rollback evidence, documentation, phase 5 summary.
 
 ---
