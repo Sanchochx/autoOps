@@ -6,7 +6,8 @@
 #   ./scripts/ops/deploy.sh --tag <sha> --dry-run   # validate and print the plan, change nothing
 #
 # Order (a failure before "apply" changes neither .env nor the running stack):
-#   validate -> pull the images -> postgres up + backup -> migrate -> rewrite IMAGE_TAG -> up --wait -> HTTPS probe
+#   validate -> pull the images -> postgres up + backup -> migrate -> rewrite IMAGE_TAG -> up --wait -> HTTPS probe -> smoke test
+#   (scripts/ops/smoke_test.sh: frontend, API, HSTS, HTTP->HTTPS redirect, gateway image)
 # Any failure after IMAGE_TAG was rewritten restores the previous tag. The rollback restores images only, not the schema.
 #
 # Variables (process environment first, then ${APP_DIR}/.env, like docker compose):
@@ -197,16 +198,21 @@ step_up() { compose_env up -d --wait --wait-timeout "$WAIT_TIMEOUT" --remove-orp
 
 step_apply() { set_env_value IMAGE_TAG "$1" && step_up; }
 
+# CA that signed the certificate when TLS_MODE=selfsigned (empty otherwise: the public certificate is trusted as usual).
+tls_cacert() {
+  local tls_dir
+  [[ "$(env_value TLS_MODE)" == selfsigned ]] || return 0
+  tls_dir="$(env_value TLS_DIR)"; tls_dir="${tls_dir:-${APP_DIR}/tls}"
+  [[ $tls_dir == /* ]] || tls_dir="${APP_DIR}/${tls_dir#./}"
+  echo "${tls_dir}/ca/ca.crt"
+}
+
 # HTTPS through Traefik, as a client would reach it (the local CA is trusted explicitly when TLS_MODE=selfsigned).
 probe_once() {
-  local domain port tls_mode tls_dir args=()
+  local domain port cacert args=()
   domain="$(env_value DOMAIN)"; port="$(env_value PROXY_HTTPS_PORT)"; port="${port:-443}"
-  tls_mode="$(env_value TLS_MODE)"
-  if [[ $tls_mode == selfsigned ]]; then
-    tls_dir="$(env_value TLS_DIR)"; tls_dir="${tls_dir:-${APP_DIR}/tls}"
-    [[ $tls_dir == /* ]] || tls_dir="${APP_DIR}/${tls_dir#./}"
-    args+=(--cacert "${tls_dir}/ca/ca.crt")
-  fi
+  cacert="$(tls_cacert)"
+  [[ -n $cacert ]] && args+=(--cacert "$cacert")
   curl --fail --silent --show-error --max-time 10 --output /dev/null \
     --resolve "${domain}:${port}:127.0.0.1" "${args[@]}" "https://${domain}:${port}${HEALTH_PATH}"
 }
@@ -221,11 +227,21 @@ step_health() {
   return 1
 }
 
+# Post-deploy smoke test (US-CICD-005): the script reads nothing from the request; it gets the values deploy.sh already uses.
+step_smoke() { # <tag the stack must be running>
+  local https_port http_port
+  https_port="$(env_value PROXY_HTTPS_PORT)"; http_port="$(env_value PROXY_HTTP_PORT)"
+  SMOKE_DOMAIN="$(env_value DOMAIN)" SMOKE_HTTPS_PORT="${https_port:-443}" SMOKE_HTTP_PORT="${http_port:-80}" \
+  SMOKE_HEALTH_PATH="$HEALTH_PATH" SMOKE_CACERT="$(tls_cacert)" SMOKE_APP_DIR="$APP_DIR" \
+  SMOKE_EXPECT_IMAGE="${IMAGE_REPO}/api-gateway:${1}" \
+    "${APP_DIR}/scripts/ops/smoke_test.sh" >&2
+}
+
 # Restores the previous tag. Images only: the schema stays as migrated (see the README: expand/contract).
 rollback() {
   [[ -n $PREVIOUS ]] || { log "no previous release to roll back to"; return 2; }
   log "rolling back to ${PREVIOUS}"
-  set_env_value IMAGE_TAG "$PREVIOUS" && step_up && step_health
+  set_env_value IMAGE_TAG "$PREVIOUS" && step_up && step_health && step_smoke "$PREVIOUS"
 }
 
 # --- main ------------------------------------------------------------------------------------------------------------
@@ -291,7 +307,7 @@ main() {
     fi
     log "dry-run: would deploy ${TAG} (run_id=${RUN_ID:-manual})"
     log "dry-run: current=$(read_tag_file "${STATE_DIR}/current") previous=$(read_tag_file "${STATE_DIR}/previous")"
-    log "dry-run: pull -> postgres up + backup -> migrate -> IMAGE_TAG -> up --wait -> probe ${HEALTH_PATH} -> rollback on failure"
+    log "dry-run: pull -> postgres up + backup -> migrate -> IMAGE_TAG -> up --wait -> probe ${HEALTH_PATH} -> smoke test -> rollback on failure"
     return 0
   fi
 
@@ -343,12 +359,16 @@ main() {
   # --- point of no return: .env now names the new tag ---
   if step_apply "$TAG"; then
     if step_health; then
-      [[ -n $current && $current != "$TAG" ]] && write_tag_file "${STATE_DIR}/previous" "$current"
-      write_tag_file "${STATE_DIR}/current" "$TAG"
-      finish succeeded none none
-      return
+      if step_smoke "$TAG"; then
+        [[ -n $current && $current != "$TAG" ]] && write_tag_file "${STATE_DIR}/previous" "$current"
+        write_tag_file "${STATE_DIR}/current" "$TAG"
+        finish succeeded none none
+        return
+      fi
+      reason=smoke_failed
+    else
+      reason=health_failed
     fi
-    reason=health_failed
   else
     reason=apply_failed
   fi

@@ -21,8 +21,8 @@
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
 │  ✅ Completed:                   30                         │
-│  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    1                          │
+│  ⏳ In Progress:                 1                          │
+│  ⏸️  Pending:                    0                          │
 │                                                             │
 │  Progress: [█████████░] 97% (30/31)                          │
 └─────────────────────────────────────────────────────────────┘
@@ -57,7 +57,7 @@
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 4 | 0 | 1 | [████████░░] 80% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 4 | 1 | 0 | [████████░░] 80% |
 
 ---
 
@@ -467,10 +467,12 @@
 - **Dependencies:** US-CICD-003, US-SYS-004
 - **Acceptance Criteria:** 5
 
-#### [ ] US-CICD-005: CD Workflow, Smoke Test and Phase Closing *(to be written)*
+#### [~] US-CICD-005: CD Workflow, Smoke Test and Phase Closing
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-005_cd_workflow.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts
 - **Dependencies:** US-CICD-004
+- **Acceptance Criteria:** 5
 - **Scope:** workflow chaining CI → build → deploy job on the self-hosted runner, post-deploy smoke test over HTTPS, rollback evidence, documentation, phase 5 summary.
 
 ---

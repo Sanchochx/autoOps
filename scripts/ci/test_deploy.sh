@@ -59,6 +59,14 @@ echo backup >>"${APP_DIR}/docker.log"
 [[ -z ${FAKE_FAIL_BACKUP:-} ]]
 STUB
   chmod +x "${APP}/scripts/ops/backup_postgres.sh"
+  # The real smoke test has its own suite (test_smoke.sh); here it is a stub that fails for FAKE_BAD_SMOKE_TAG.
+  cat >"${APP}/scripts/ops/smoke_test.sh" <<'STUB'
+#!/usr/bin/env bash
+envtag="$(grep -E '^IMAGE_TAG=' "${APP_DIR}/.env" | tail -n1 | cut -d= -f2)"
+echo "smoke env=${envtag} expect=${SMOKE_EXPECT_IMAGE:-}" >>"${APP_DIR}/docker.log"
+[[ -z ${FAKE_SMOKE_ALWAYS_FAIL:-} && $envtag != "${FAKE_BAD_SMOKE_TAG:-none}" ]]
+STUB
+  chmod +x "${APP}/scripts/ops/smoke_test.sh"
   if [[ -n ${2:-} ]]; then mkdir -p "${APP}/.deploy"; echo "$2" >"${APP}/.deploy/current"; fi
 }
 
@@ -105,6 +113,17 @@ check "migrate fails: failed/migrate_failed, .env untouched" bash -c "[[ $RC == 
 new_app "$OLD" "$OLD"; FAKE_BAD_HEALTH_TAG="$BAD" run --tag "$BAD"
 check "health fails: exit 1, rolled_back/health_failed" bash -c "[[ $RC == 1 && '$(status_of state)' == rolled_back && '$(status_of reason)' == health_failed && '$(status_of rollback)' == ok ]]"
 check "health fails: .env and current back on the previous tag" bash -c "[[ '$(env_tag)' == $OLD && \$(cat '${APP}/.deploy/current') == $OLD ]]"
+
+# 5b. smoke test (US-CICD-005): runs after the probe, with the deployed image expected; a failure rolls back like the probe
+new_app "$OLD" "$OLD"; run --tag "$GOOD"
+check "smoke passes: succeeded, smoke ran once, expecting the new gateway image" bash -c "[[ $RC == 0 && '$(status_of state)' == succeeded ]] && [[ \$(grep -c '^smoke' '${APP}/docker.log') == 1 ]] && grep -q 'expect=ghcr.io/o/autoops/api-gateway:${GOOD}' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; FAKE_BAD_SMOKE_TAG="$BAD" run --tag "$BAD"
+check "smoke fails: rolled_back/smoke_failed with rollback ok, .env and current back" bash -c "[[ $RC == 1 && '$(status_of state)' == rolled_back && '$(status_of reason)' == smoke_failed && '$(status_of rollback)' == ok && '$(env_tag)' == $OLD && \$(cat '${APP}/.deploy/current') == $OLD ]]"
+check "smoke fails: the rollback is smoke-tested too (expects the previous image)" bash -c "grep -q 'expect=ghcr.io/o/autoops/api-gateway:${OLD}' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; FAKE_BAD_SMOKE_TAG="$BAD" FAKE_BAD_HEALTH_TAG="$BAD" run --tag "$BAD"
+check "health fails first: the smoke test never runs for the bad release" bash -c "[[ '$(status_of reason)' == health_failed ]] && ! grep -q 'smoke env=${BAD}' '${APP}/docker.log'"
+new_app "$OLD" "$OLD"; FAKE_SMOKE_ALWAYS_FAIL=1 run --tag "$GOOD"
+check "smoke fails everywhere: the rollback fails too -> failed, rollback failed" bash -c "[[ $RC == 1 && '$(status_of state)' == failed && '$(status_of reason)' == smoke_failed && '$(status_of rollback)' == failed ]]"
 
 # 6. up fails: rollback too
 new_app "$OLD" "$OLD"; FAKE_BAD_UP_TAG="$BAD" run --tag "$BAD"
