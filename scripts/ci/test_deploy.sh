@@ -140,7 +140,9 @@ check "hand-set tag: rolled_back to it" bash -c "[[ '$(status_of state)' == roll
 # 9. request file: valid is consumed and its run_id reported; invalid changes nothing
 new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=42\n' "$GOOD" >"${APP}/req"; run --request-file "${APP}/req"
 check "request: succeeded with run_id, file consumed" bash -c "[[ $RC == 0 && '$(status_of run_id)' == 42 && ! -e '${APP}/req' ]]"
+check "request: stderr still works after the request is read (the log reaches the journal)" bash -c "grep -q 'deploy: deploying ${GOOD}' <<<'$OUT' && grep -q 'deploy: state=succeeded' <<<'$OUT'"
 new_app "$OLD" "$OLD"; printf 'tag=%s\nrun_id=7\n' 'xyz;reboot' >"${APP}/req"; run --request-file "${APP}/req"
+check "request: an invalid request is logged too" bash -c "grep -q 'deploy: invalid request: invalid tag' <<<'$OUT'"
 check "request: invalid -> failed/invalid_request, no docker call" bash -c "[[ $RC == 1 && '$(status_of reason)' == invalid_request && '$(status_of run_id)' == 7 && ! -e '${APP}/docker.log' ]]"
 
 # 10. dry run

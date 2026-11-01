@@ -63,7 +63,8 @@ parse_request() {
   [[ -f $file ]] || { REQUEST_ERROR="request is not a regular file"; return 1; }
   # Open once, then check that the descriptor and the path are the same inode: the writer (the runner) cannot swap the
   # file for a symlink between the check and the read.
-  exec {fd}<"$file" 2>/dev/null || { REQUEST_ERROR="request cannot be opened"; return 1; }
+  # The redirection is on the group, not on `exec`: `exec ... 2>/dev/null` would redirect the stderr of the whole script for good.
+  { exec {fd}<"$file"; } 2>/dev/null || { REQUEST_ERROR="request cannot be opened"; return 1; }
   fd_id="$(stat -L -c '%d:%i' "/proc/self/fd/${fd}")"; path_id="$(stat -c '%d:%i' -- "$file")"
   if [[ $fd_id != "$path_id" || -L $file ]]; then exec {fd}<&-; REQUEST_ERROR="request changed while being read"; return 1; fi
   size="$(stat -L -c %s "/proc/self/fd/${fd}")"
