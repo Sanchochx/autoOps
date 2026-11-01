@@ -149,6 +149,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - run: python3 -c 'import yaml' 2>/dev/null || pip install --user pyyaml==6.0.3
       - run: docker compose -f infra/runner/docker-compose.yml config -q
       - name: RUNNER_REPO_URL unset must be rejected
         run: |
@@ -240,6 +241,9 @@ jobs:
       - name: Build the runner image
         env:
           RUNNER_REPO_URL: https://github.com/example/example
+          # Required by the Compose interpolation (spool bind mounts); bake only builds, nothing is mounted.
+          DEPLOY_INBOX_DIR: /srv/autoops/deploy/inbox
+          DEPLOY_OUTBOX_DIR: /srv/autoops/deploy/outbox
         # bake resolves `context: .` against the working directory, not the Compose file: run it from its folder.
         working-directory: infra/runner
         run: |
