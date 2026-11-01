@@ -19,12 +19,12 @@
 ┌─────────────────────────────────────────────────────────────┐
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
-│  Total User Stories:             32                         │
-│  ✅ Completed:                   32                         │
+│  Total User Stories:             33                         │
+│  ✅ Completed:                   33                         │
 │  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    0                          │
 │                                                             │
-│  Progress: [██████████] 100% (32/32)                         │
+│  Progress: [██████████] 100% (33/33)                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,6 +59,7 @@
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
 | 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 5 | 0 | 0 | [██████████] 100% |
 | 15 | Frontend Ticket Management | FE | 1 | 1 | 0 | 0 | [██████████] 100% |
+| 16 | Backend Ticket Lifecycle | BE | 1 | 1 | 0 | 0 | [██████████] 100% |
 
 ---
 
@@ -502,7 +503,7 @@
 
 ### User Stories
 
-#### [~] US-BE-002: Persist the AI Root-Cause Analysis and Close the Ticket Lifecycle
+#### [x] US-BE-002: Persist the AI Root-Cause Analysis and Close the Ticket Lifecycle
 - **File:** `context/user_stories/epic_16_backend/US-BE-002_rca_persistence.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts

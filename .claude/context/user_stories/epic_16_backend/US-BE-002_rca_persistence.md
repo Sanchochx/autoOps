@@ -4,7 +4,7 @@
 **Priority:** HIGH
 **Estimate:** 5 pts
 **Dependencies:** US-INT-001, US-INT-002, US-DB-001, US-FE-001
-**Status:** In progress (AC-1 to AC-4 implemented and unit-tested; AC-5 needs the running stack)
+**Status:** Done
 
 ---
 
@@ -50,7 +50,7 @@
   - `Ticket` model and the API guard include `analysis` (string or null) and the `escalated` status; a status badge ("Escalado") with AA contrast. The "Agente" column renders the persisted `analysis` (expandable "Ver análisis") when present, falling back to the live WebSocket activity only while the ticket is in flight.
   - **Verification:** Vitest covers the guard with and without `analysis` and the new status; after the agent finishes and the page is reloaded (F5) the same analysis and `Escalado` badge appear; the grid layout and the console are visually unchanged.
 
-- [ ] **AC-5: Rollout, Documentation and Evidence**
+- [x] **AC-5: Rollout, Documentation and Evidence**
   - `0002` is applied explicitly with `docker compose --profile tools run --rm migrate` (the `migrate` service is deliberately **not** run by `up`; the CD deploy runs it as a step) on an existing database without data loss; README/US notes updated (`analysis`, `escalated`, the failure rule); `IMPLEMENTATION_PLAN.md` gets the Epic 16 row; the `ci` check is green.
   - **Verification:** on the running stack (after the explicit migrate step), create a ticket, wait until it shows `Escalado`, reload the page and confirm the analysis is still there; stop the LLM (invalid key) and confirm a new ticket returns to `Abierto` with the error visible in the console.
 
@@ -61,6 +61,7 @@
 - **Incident during AC-5:** a manual `docker compose up -d --build` returned HTTP 500 on `/api/v1/tickets` (`column tickets.analysis does not exist`) because the migration had not been applied: `migrate` lives in the `tools` profile and `up` never runs it. The code was correct; the earlier claim that `up` applied the migration was wrong. Fix: run the migrate step (below) after pulling a release that adds a migration.
   `sudo docker compose --profile tools run --rm migrate`
 
+- **AC-5 evidence:** confirmed by the product owner on the running stack after `docker compose --profile tools run --rm migrate` (`Running upgrade 0001 -> 0002`): ticket reaches `Escalado` with its analysis, which survives F5. Claude did not observe the run (no Docker access).
 - **AC-1 verification gap:** no PostgreSQL server was available where this was implemented (client tools only), so the migration was checked as generated SQL (`alembic upgrade 0001:0002 --sql` / `downgrade 0002:0001 --sql`: `ALTER TYPE ... ADD VALUE IF NOT EXISTS` outside the transaction, then `ADD COLUMN analysis TEXT`), not executed. Running it on a real database is part of AC-5.
 
 - **Existing data:** tickets already stuck at `investigating` from the previous behavior keep that value (they have no analysis). Cleaning them up is out of scope; the "Limpiar Tickets" action can remove them.
