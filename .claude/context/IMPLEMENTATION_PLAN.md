@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   29                         │
-│  ⏳ In Progress:                 1                          │
+│  ✅ Completed:                   30                         │
+│  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    1                          │
 │                                                             │
-│  Progress: [█████████░] 94% (29/31)                          │
+│  Progress: [█████████░] 97% (30/31)                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +57,7 @@
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 3 | 1 | 1 | [██████░░░░] 60% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 4 | 0 | 1 | [████████░░] 80% |
 
 ---
 
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [███████░░░] 75% (6/8)
+**Progress:** [████████░░] 88% (7/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -460,7 +460,7 @@
 - **Dependencies:** US-CICD-002, US-SYS-003
 - **Acceptance Criteria:** 5
 
-#### [~] US-CICD-004: Pull-Based Deployment on the Host
+#### [x] US-CICD-004: Pull-Based Deployment on the Host
 - **File:** `context/user_stories/epic_14_cicd/US-CICD-004_pull_based_deploy.md`
 - **Priority:** CRITICAL
 - **Estimate:** 8 pts

@@ -4,7 +4,7 @@
 **Priority:** CRITICAL
 **Estimate:** 8 pts
 **Dependencies:** US-CICD-003, US-SYS-004
-**Status:** In progress
+**Status:** Completed
 
 ---
 
@@ -60,9 +60,10 @@
   - **Verification:** adding a third mount, an rw `outbox`, `docker.sock` or a host path to the runner Compose turns `runner-compose` red; from the runner, writing to `inbox` works and writing to `outbox` fails; `request_deploy.sh` returns 0 for `succeeded` and non-zero for `rolled_back`, `failed` and timeout.
   - **Evidence status:** `shellcheck` is clean. `scripts/ci/test_request_deploy.sh` (fake host, 35 assertions: exit code per state, request bytes and mode, a running status waited out, stale/foreign statuses ignored, timeout withdrawing the request, pending request, invalid input, symlinked status, no workflow-command injection) runs in `deploy-guards`; three mutations of the script (stale-status guard, withdraw on timeout, run id match) turn it red. `scripts/ci/test_runner_compose_guard.sh` (in `runner-compose`) shows the real Compose passing and six weakenings (third mount, writable outbox, wrong target, socket, root as source, creatable source) turning `check_runner_compose.sh` red. The spool sources reach the Compose through `DEPLOY_INBOX_DIR`/`DEPLOY_OUTBOX_DIR`, which `75_runner.sh` resolves with the defaults of `70_systemd.sh` and writes into the unit. **Verified on the VM (2026-11-01):** `runner-smoke.yml` (`workflow_dispatch` on `main`) is green, and a request written to the inbox from inside the runner container was picked up by `autoops-deploy.path`: with a non-existent tag the host answered `provenance_unavailable` (fail closed), and with the SHA of the merged commit on `main` the deploy ran pull, backup and `up` and left `state=succeeded` in the outbox, with all four services running `ghcr.io/sanchochx/autoops/<service>:<sha>`. Still pending: `sudo ./scripts/provision/verify.sh` on the VM and the failure drills of AC-5 (rollback path).
 
-- [ ] **AC-5: Failure Drills, Documentation and Closing**
+- [x] **AC-5: Failure Drills, Documentation and Closing**
   - Recorded evidence of: a successful deploy, a failed `pull`, a failed health-gate with automatic rollback, a malformed request, a request for an old SHA, and two concurrent requests. `infra/deploy/README.md` (flow, threat model, request format, the operator rollback `deploy.sh --tag`, restoring the pre-deploy backup, the schema limit, GHCR package visibility with its verification command). `infra/runner/README.md` replaces "designed in US-CICD-004" with the actual channel and the new two-mount rule; `infra/ci/README.md`, `infra/README.md`, `infra/systemd/README.md`, `.claude/CLAUDE.md` and `README.md` mention it.
   - **Verification:** a reader can deploy, roll back and restore a backup following only the documents; plan updated (Epic 14 at 80%, Phase 5 at 7/8).
+  - **Evidence status:** `infra/deploy/README.md` (flow, request and status formats, threat model, operator deploy/rollback, restore, schema limit, GHCR visibility check, drill table) is linked from `infra/README.md`, `infra/ci/README.md`, `infra/systemd/README.md`, `README.md` and `.claude/CLAUDE.md`. Drills run on the VM on 2026-11-01: successful deploy, malformed request, old SHA, unknown SHA and concurrent requests behave as designed. **Accepted limits (checkpoint 2026-11-01):** the failed `pull` and a clean `rolled_back` were not reproduced on the VM (covered by `scripts/ci/test_deploy.sh` with a fake `docker`); the health-gate drill ended in `rollback=failed` because its override also broke the rollback probe, though the images were restored. `sudo ./scripts/provision/verify.sh` on the VM and a read-through of the docs by someone other than the author were not done.
 
 ---
 

@@ -109,7 +109,7 @@ image: `docker image inspect <image> --format '{{index .Config.Labels "org.openc
 The packages inherit the visibility of the repository: while it is public, anyone can `docker pull` them without
 credentials. If the repository becomes private the packages are private too, and the host needs
 `docker login ghcr.io` with a token that only has `read:packages`. How that credential is provisioned and stored is
-decided in US-CICD-003/004; do not reuse a personal token with wider scopes.
+not needed while the repository is public (US-CICD-004 checks it, see [`../deploy/README.md`](../deploy/README.md#ghcr-package-visibility)); do not reuse a personal token with wider scopes.
 
 ### Updating the pinned actions
 
@@ -174,9 +174,10 @@ The deploy job (US-CICD-004/005) runs on a runner that lives on the AutoOps host
 and no network shared with the stack, so GitHub never needs to reach the host. This pipeline only guards it: the two
 jobs above run on GitHub-hosted runners and fail the build if the runner Compose loses a control or a workflow that
 targets the runner could be triggered from a pull request. Threat model, provisioning, GitHub settings and evidence:
-[`../runner/README.md`](../runner/README.md).
+[`../runner/README.md`](../runner/README.md). What the runner may ask of the host (a deploy of a SHA on `main`) and how the host
+validates, applies and rolls it back: [`../deploy/README.md`](../deploy/README.md).
 
 ## Out of scope
 
-Deployment (US-CICD-004/005), image signing, SBOM, coverage thresholds, dependency
-and image vulnerability scanning, retention of old image versions, multi-arch images.
+The deploy workflow (US-CICD-005; the host side is in [`../deploy/README.md`](../deploy/README.md)), image signing, SBOM,
+coverage thresholds, dependency and image vulnerability scanning, retention of old image versions, multi-arch images.

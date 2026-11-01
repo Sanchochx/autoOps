@@ -17,6 +17,10 @@ Check: `sudo ./scripts/provision/checks/70_systemd.sh`.
 sudo systemctl start|stop|restart|reload autoops
 sudo systemctl start autoops-migrate     # run migrations (stack should be up)
 journalctl -u autoops                    # lifecycle; application logs: docker compose logs
+
+# Deploy (US-CICD-004): autoops-deploy.path starts autoops-deploy.service when the runner leaves a request
+systemctl status autoops-deploy.path
+journalctl -u autoops-deploy.service     # what each deploy did; flow and operations: infra/deploy/README.md
 ```
 
 ## Design notes
