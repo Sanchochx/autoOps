@@ -64,6 +64,55 @@ of the running and the preceding release.
 | `failed` | Rejected or failed; check `reason` and `rollback` (`failed` = the stack needs manual attention) | 2 |
 | (no answer) | Host did not answer in `DEPLOY_WAIT_TIMEOUT`; the request is withdrawn | 3 |
 
+## Continuous delivery (US-CICD-005)
+
+`.github/workflows/deploy.yml` makes the flow above automatic: **merge to `main`, watch the run**. No step reaches Docker
+from GitHub.
+
+| Job | Where | What it does |
+|---|---|---|
+| `wait-for-ci` | GitHub-hosted | Polls the `CI` run of the same commit (every 20 s, up to 30 min) and requires its `ci` and `publish` jobs to be `success`, i.e. tested and the four images in GHCR. A red, cancelled or missing CI ends the workflow here and the host is never asked. |
+| `deploy` | self-hosted runner `autoops-prod`, `environment: production` | Checks out the commit and runs `bash scripts/ci/request_deploy.sh`. The exit code of the script is the job result and the outcome goes to the job summary. |
+
+- **Triggers:** `push` to `main` and `workflow_dispatch` (the only ones `check_runner_workflows.sh` allows for a workflow that
+  uses the runner). `workflow_dispatch --ref main` redeploys the commit at the tip of `main`; any other branch is refused by
+  the environment rule.
+- **Order:** `concurrency: deploy` with `cancel-in-progress: false`; two merges in a row queue and a deploy in flight is
+  never cancelled. The host also refuses a SHA older than the running release.
+- **Exit codes → job result:** `0` green (`succeeded`), `1` red (`rolled_back`: the previous release is running),
+  `2` red (`failed`), `3` red (no answer in `DEPLOY_WAIT_TIMEOUT`, 1500 s; the request is withdrawn).
+- **Job summary:** `Deploy of <sha>` with the `state`, `reason`, `rollback`, tag and times copied from the fixed-code
+  `status`, never raw command output.
+- **Smoke test:** `scripts/ops/smoke_test.sh` runs on the host as the last step of the health gate, after the probe, with
+  read-only HTTPS requests through Traefik: the frontend answers `200` with HTML; the API answers `200` on
+  `DEPLOY_HEALTH_PATH`; `HSTS` is set; HTTP redirects to HTTPS; the `api-gateway` container runs the deployed tag. A failure
+  is `reason=smoke_failed` and triggers the normal rollback (which is smoke-tested against the previous image too). It runs on
+  the host because the runner cannot reach the stack by design. By hand: see the variables at the top of the script.
+
+### What to do on each red
+
+| The run shows | Look at | Usually |
+|---|---|---|
+| `wait-for-ci` red | The CI run linked from the job log | Fix the commit. Nothing reached the host; push a fix |
+| `deploy` red, exit 3 (no answer) | `systemctl status autoops-deploy.path autoops-runner.service` on the host, then the journal | A stopped unit, or a deploy slower than 25 min |
+| `reason=invalid_request` / `preflight` | `journalctl -u autoops-deploy.service -n 40 -o cat` | Spool or `.env` problem on the host (`verify.sh`) |
+| `reason=provenance_unavailable` / `images_missing` | Same, then [Flaky TLS](#flaky-tls-random-images_missing-or-provenance_unavailable) | The host could not reach GitHub or GHCR. Re-run the workflow (`gh run rerun <id> --failed`) |
+| `reason=provenance_rejected` | The history line | The SHA is not ahead of the running release (an older run). Expected; nothing changed |
+| `pull_failed`, `backup_failed`, `migrate_failed` | The journal | Nothing was applied (`.env` untouched); fix and re-run |
+| `rolled_back` (`health_failed`, `smoke_failed`, `apply_failed`) | The journal and `docker compose logs <service>` | The previous release is running; fix forward |
+| `rollback=failed` | [When `rollback=failed`](#when-rollbackfailed-or-the-stack-is-unhealthy) | Manual attention |
+
+### GitHub settings
+
+Documented with the rest in [`../runner/README.md`](../runner/README.md#github-settings) and
+[`../ci/README.md`](../ci/README.md#branch-protection-manual-github-settings-are-not-in-the-repository):
+
+- Environment `production` limited to `main` (applied). **No required reviewers**: deploys are automatic, a decision of
+  US-CICD-005. To add a manual gate before each deploy: Settings → Environments → `production` → Required reviewers. Runs then
+  wait for approval before the `deploy` job starts, and an unapproved run is cancelled after 30 days.
+- Branch protection on `main`: only `ci` is required (applied). `wait-for-ci` makes the deploy depend on `publish` as well.
+- If the repository becomes private: a new runner registration token and GHCR pull credentials on the host (see the links above).
+
 ## Threat model
 
 The runner executes workflow code, so it is **not trusted**; the host re-derives everything from public data.
@@ -168,7 +217,8 @@ token (see [`../ci/README.md`](../ci/README.md#package-visibility-and-pull-crede
 
 | What | Where |
 |---|---|
-| Deploy flow with a fake `docker`/`curl` (success, failed pull, backup, migrate and `up`, failed health gate with rollback, first deploy) and the guards (parser, provenance, registry) | `scripts/ci/test_deploy.sh`, CI job `deploy-guards` |
+| Deploy flow with a fake `docker`/`curl` (success, failed pull, backup, migrate and `up`, failed health gate or smoke test with rollback, first deploy) and the guards (parser, provenance, registry) | `scripts/ci/test_deploy.sh`, CI job `deploy-guards` |
+| Post-deploy smoke test (fake `curl`/`docker`, one mutation per check) | `scripts/ci/test_smoke.sh`, `deploy-guards` |
 | Runner side (exit codes, stale status, timeout, injection) | `scripts/ci/test_request_deploy.sh`, `deploy-guards` |
 | The runner Compose keeps exactly the two spool mounts | `check_runner_compose.sh` and `test_runner_compose_guard.sh`, `runner-compose` |
 | Spool and units on the host | `scripts/provision/checks/85_deploy.sh` (`verify.sh`) |
@@ -187,3 +237,23 @@ Drills run on the VM on 2026-11-01. Releases: `3087d5d` (PR #6 merge) and `56097
 | 4 | Failed `pull` | **not reproduced on the VM** (a missing image stops earlier, at `images_missing`) | covered by `test_deploy.sh` with a fake `docker` |
 | 5 | Failed health gate | operator run of `56097f1` with `DEPLOY_HEALTH_PATH=/api/v1/no-existe` | pull, backup, migrate and `up` ok; probe 404 twice; images rolled back to `3087d5d` (`docker ps`, `.env` `IMAGE_TAG` and `current` agree; the real endpoint returns 200); but the **same wrong path** was used to probe the rollback, so the outcome was `failed` / `health_failed` / `rollback=failed`. That is the "stack needs manual attention" branch. A clean `rolled_back` needs a failure that only the new release has and is covered by `test_deploy.sh`, not reproduced on the VM. |
 | 6 | Two concurrent requests | runs 3001 and 3002 for the running tag, sent back to back | processed one after the other (the second started when the first finished); both `succeeded` |
+| 7 | Smoke test inside a real deploy | automatic deploy of `4538ba4` (below) | six checks `ok` in the journal, gateway on the deployed tag |
+| 8 | `rolled_back` with `smoke_failed` | **not reproduced on the VM**: it needs a release that is broken only for itself, i.e. a broken commit published to `main` on purpose, and a flag that breaks the probe breaks the rollback too (row 5) | covered by `test_deploy.sh` (smoke fails → `rolled_back`/`smoke_failed`/`rollback=ok`; both fail → `failed`/`rollback=failed`; mutation "no rollback after `smoke_failed`" turns it red). Optional operator drill: a release that fails only itself, then a revert |
+
+### End-to-end continuous delivery (2026-11-01)
+
+PR #12 (`fix/deploy-network-resilience`) merged at 14:31:14 UTC with no manual command afterwards:
+
+| Step | Run | Time (UTC) |
+|---|---|---|
+| Merge to `main` (`4538ba4`) | PR #12 | 14:31:14 |
+| `CI` (`ci` and `publish`) | [41316601368](https://github.com/Sanchochx/autoOps/actions/runs/41316601368) | 14:31:16 – 14:34:24 |
+| `Deploy` / `wait-for-ci` | [41316601384](https://github.com/Sanchochx/autoOps/actions/runs/41316601384) | 14:31:19 – 14:34:27 |
+| `Deploy` / `deploy` (request, host deploy, smoke) | same run | 14:34:31 – 14:35:52 |
+
+**Merge to `succeeded`: about 4 min 38 s**, of which about 3 min is the CI and image publication the gate waits for. Journal:
+`deploy: health probe ok (attempt 1/12)`, six `ok` lines of the smoke test, `deploy: state=succeeded reason=none rollback=none
+tag=4538ba4187d4139bd7f477988b66f5d67c76d9d1`. This was after the PR #10 (noexec workspace), #11 (stderr) and #12 (flaky outbound
+TLS, `DEPLOY_TLS_CLASSIC_KEX=1` on this host) fixes; the earlier real runs failed for those environment reasons, not for the
+logic. A `workflow_dispatch` of `main` run afterwards ([41316782562](https://github.com/Sanchochx/autoOps/actions/runs/41316782562))
+also ended green.

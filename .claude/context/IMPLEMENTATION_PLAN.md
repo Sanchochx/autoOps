@@ -8,7 +8,7 @@
   The workflow (TASK_EXECUTION.md) updates this file when closing each US.
 -->
 
-**Last updated:** 2026-10-29
+**Last updated:** 2026-11-01
 **Version:** 3.0
 
 ---
@@ -20,11 +20,11 @@
 │  OVERALL PROJECT PROGRESS                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
-│  ✅ Completed:                   30                         │
-│  ⏳ In Progress:                 1                          │
+│  ✅ Completed:                   31                         │
+│  ⏳ In Progress:                 0                          │
 │  ⏸️  Pending:                    0                          │
 │                                                             │
-│  Progress: [█████████░] 97% (30/31)                          │
+│  Progress: [██████████] 100% (31/31)                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +57,7 @@
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 4 | 1 | 0 | [████████░░] 80% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 5 | 0 | 0 | [██████████] 100% |
 
 ---
 
@@ -386,7 +386,7 @@
 **Goal:** Expose the stack only through a Traefik reverse proxy with TLS, and deploy it continuously: images built in the cloud (GitHub Actions → GHCR) and pulled by a self-hosted runner on the host.
 **Epics:** 13 Reverse Proxy & TLS, 14 CI/CD
 **Total US:** 8 (47 pts)
-**Progress:** [████████░░] 88% (7/8)
+**Progress:** [██████████] 100% (8/8)
 
 > Decisions:
 > - **Proxy:** Traefik with the **file provider**; `docker.sock` is never mounted. Single domain, path routing (`/` frontend, `/api` and `/ws` gateway), new `edge_net`.
@@ -467,7 +467,7 @@
 - **Dependencies:** US-CICD-003, US-SYS-004
 - **Acceptance Criteria:** 5
 
-#### [~] US-CICD-005: CD Workflow, Smoke Test and Phase Closing
+#### [x] US-CICD-005: CD Workflow, Smoke Test and Phase Closing
 - **File:** `context/user_stories/epic_14_cicd/US-CICD-005_cd_workflow.md`
 - **Priority:** HIGH
 - **Estimate:** 5 pts

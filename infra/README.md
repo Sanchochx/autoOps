@@ -16,7 +16,7 @@ the per-topic folders below.
 | [`traefik/`](traefik/README.md) | Reverse proxy: single entry point, path routing (Phase 5, PROXY-001) |
 | [`ci/`](ci/README.md) | GitHub Actions CI, images published to GHCR (CICD-001, CICD-002) |
 | [`runner/`](runner/README.md) | Containerized self-hosted GitHub Actions runner, optional (Phase 5, CICD-003) |
-| [`deploy/`](deploy/README.md) | Pull-based deploy on the host: request/status channel, guards, rollback (Phase 5, CICD-004) |
+| [`deploy/`](deploy/README.md) | Pull-based deploy on the host: request/status channel, guards, rollback (Phase 5, CICD-004); CD workflow, smoke test and what to do on each red (CICD-005) |
 
 ## Scripts
 
@@ -71,4 +71,4 @@ row), then restore the control.
 - `bootstrap.sh` refuses to run on anything but Ubuntu 26.04, as root, and without the required variables
   (`ADMIN_USER`, `ADMIN_SSH_PUBKEY_FILE`, `FAIL2BAN_IGNOREIP`). Nothing is touched before those checks pass.
 - It never cancels the SSH rollback by itself unless `--confirm-ssh` is given.
-- Out of scope: instance provisioning (Terraform), auditd/Lynis. TLS is served by Traefik (US-PROXY-002, [`traefik/README.md`](traefik/README.md)); CI/CD is Epic 14.
+- Out of scope: instance provisioning (Terraform), auditd/Lynis. TLS is served by Traefik (US-PROXY-002, [`traefik/README.md`](traefik/README.md)); CI/CD is Epic 14 (merge to `main` → CI → images → automatic deploy with smoke test and rollback, see [`deploy/README.md`](deploy/README.md#continuous-delivery-us-cicd-005)).

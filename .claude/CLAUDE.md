@@ -33,7 +33,7 @@
 - **Containers:** Docker & Docker Compose
 - **Reverse proxy:** Traefik / Nginx with SSL termination (Let's Encrypt)
 - **Deployment OS:** Ubuntu Server (AWS EC2 / local VirtualBox VM)
-- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; a containerized self-hosted runner on the host, see `infra/runner/README.md`; pull-based deployment: the runner leaves a request, the host validates, pulls and applies it with rollback, see `infra/deploy/README.md`)
+- **CI/CD:** GitHub Actions (CI: `.github/workflows/ci.yml`, see `infra/ci/README.md`; images published to GHCR from `main`, tagged with the commit SHA; a containerized self-hosted runner on the host, see `infra/runner/README.md`; pull-based deployment: the runner leaves a request, the host validates, pulls and applies it with rollback, see `infra/deploy/README.md`; continuous delivery: `.github/workflows/deploy.yml` deploys every green push to `main` and `scripts/ops/smoke_test.sh` checks it over HTTPS before the deploy counts as succeeded)
 
 ---
 
@@ -113,7 +113,7 @@ autoops/
 │   └── mcp-servers/          # MCP servers (DB, logs and metrics isolation)
 ├── scripts/
 │   ├── provision/            # bootstrap.sh, verify.sh, NN_*.sh steps and checks/ (idempotent host setup)
-│   ├── ops/                  # Backup/restore PostgreSQL, env validation
+│   ├── ops/                  # Backup/restore PostgreSQL, env validation, host-side deploy and smoke test
 │   └── ci/                   # Guards run by CI (runner Compose lock-down, workflows allowed to use the runner)
 ├── infra/                    # Host config templates and docs (ssh, fail2ban, firewall, docker, systemd, backup, ci, runner) and the Traefik reverse proxy (Dockerfile, static + dynamic config)
 ├── .claude/

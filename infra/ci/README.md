@@ -3,7 +3,7 @@
 `.github/workflows/ci.yml` runs on every pull request to `develop` or `main` and on every push to those branches,
 on GitHub-hosted runners. It **validates and builds**: pull requests build the images without pushing; only a push to
 `main` with a green `ci` publishes them to GHCR (job `publish`, see [Images](#images-us-cicd-002)). It never deploys
-(US-CICD-004/005) and needs **no secrets of its own**: the default is `permissions: contents: read`, no
+(US-CICD-004/005: `deploy.yml`, see [`../deploy/README.md`](../deploy/README.md#continuous-delivery-us-cicd-005)) and needs **no secrets of its own**: the default is `permissions: contents: read`, no
 `pull_request_target`, and `publish` authenticates with the built-in `GITHUB_TOKEN`.
 
 ## Jobs
@@ -26,6 +26,8 @@ on GitHub-hosted runners. It **validates and builds**: pull requests build the i
 - **Third-party actions are pinned by full commit SHA**, with the version in a comment. To update one, resolve the tag
   again (`git ls-remote --tags https://github.com/<owner>/<action> 'refs/tags/v*'`; for an annotated tag use the
   `^{}` line) and change SHA and comment together. Never use a moving tag.
+- **`deploy.yml` starts on the same push to `main`** and its first job waits for this workflow's `ci` and `publish` jobs; renaming
+  either of them breaks the gate (`wait-for-ci` in `.github/workflows/deploy.yml`).
 - **`ci` is the only status branch protection requires.** To add a job, add it to `needs:` of `ci`; renaming or
   adding jobs then never breaks the protection rule.
 - **Concurrency:** a new push to a pull request cancels its running workflow; runs on `develop` and `main` are never
