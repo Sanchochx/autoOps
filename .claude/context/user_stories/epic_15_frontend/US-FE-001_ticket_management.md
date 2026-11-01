@@ -56,6 +56,8 @@
 
 ## Technical Notes
 
+- **Agent column (post-AC addition):** the list shows the agents' progress per ticket (triage → investigating → saving → done/failed) plus the investigator's analysis in an expandable "Ver análisis". It is derived from the existing `ai_event` WebSocket frames (`ticket_id`, `node`, `message`) in a store of the agent-console feature; nothing is persisted, so tickets processed before the page was opened show "—". Persisting the analysis would need a backend change (new column) and is out of scope here.
+
 - **Closing note (AC-5):** marked complete at the product owner's request; the browser walkthrough through Traefik was run by the product owner, not by Claude (Docker was not accessible to the Claude Code user). That walkthrough surfaced tickets stuck in "investigating" (LLM configuration, not the UI); the AI engine config now requires `OPENAI_API_KEY` explicitly (optional `OPENAI_BASE_URL`), with `.env.example`/Compose/CLAUDE.md updated. `VITE_TICKETS_POLL_INTERVAL_MS` is also a Compose/Dockerfile build-arg.
 
 - **Why `severity: "medium"` is sent at all:** the schema requires it and the router overrides it with `medium`; the agent's classification arrives later via the background task, which is what the list will display.

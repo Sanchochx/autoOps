@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { useTickets } from '../hooks/useTickets'
+import { AgentActivityCell } from './AgentActivityCell'
 import { SeverityBadge, StatusBadge } from './TicketBadges'
 
 const TH = 'px-3 py-2 text-left font-medium'
@@ -47,6 +48,7 @@ export function TicketList(): React.JSX.Element {
                 <th scope="col" className={TH}>Título</th>
                 <th scope="col" className={TH}>Estado</th>
                 <th scope="col" className={TH}>Severidad</th>
+                <th scope="col" className={TH}>Agente</th>
                 <th scope="col" className={TH}>Creado</th>
               </tr>
             </thead>
@@ -59,6 +61,7 @@ export function TicketList(): React.JSX.Element {
                   <td className="px-3 py-2">{ticket.title}</td>
                   <td className="px-3 py-2"><StatusBadge status={ticket.status} /></td>
                   <td className="px-3 py-2"><SeverityBadge severity={ticket.severity} /></td>
+                  <td className="px-3 py-2"><AgentActivityCell ticketId={ticket.id} /></td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <time dateTime={ticket.createdAt}>
                       {new Date(ticket.createdAt).toLocaleString()}
