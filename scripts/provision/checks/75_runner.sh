@@ -14,6 +14,10 @@ APP_ENV_FILE="${APP_ENV_FILE:-${APP_DIR}/.env}"
 UNIT=/etc/systemd/system/autoops-runner.service
 NETWORK=autoops-runner_runner_net
 SECRET_MOUNT=/run/secrets/runner_token
+# Deploy spool (US-CICD-004): same settings and defaults as 70_systemd.sh / 75_runner.sh.
+DEPLOY_STATE_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_STATE_DIR)"; DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${APP_DIR}/.deploy}"
+DEPLOY_INBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_INBOX_DIR)"; DEPLOY_INBOX_DIR="${DEPLOY_INBOX_DIR:-${DEPLOY_STATE_DIR}/inbox}"
+DEPLOY_OUTBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_OUTBOX_DIR)"; DEPLOY_OUTBOX_DIR="${DEPLOY_OUTBOX_DIR:-${DEPLOY_STATE_DIR}/outbox}"
 
 if [[ -z "$(env_value "$APP_ENV_FILE" RUNNER_REPO_URL)" ]]; then
   log_info "RUNNER_REPO_URL no está definido en ${APP_ENV_FILE}: se omiten los controles del runner."
@@ -22,7 +26,8 @@ fi
 
 CID="$(docker ps -q --filter label=com.docker.compose.project=autoops-runner --filter label=com.docker.compose.service=runner | head -n1)"
 inspect()          { docker inspect -f "$1" "$CID"; }
-render()           { sed -e "s|@@APP_DIR@@|${APP_DIR}|g" -e "s|@@SERVICE_USER@@|${SERVICE_USER}|g" "$1"; }
+render()           { sed -e "s|@@APP_DIR@@|${APP_DIR}|g" -e "s|@@SERVICE_USER@@|${SERVICE_USER}|g" \
+                      -e "s|@@DEPLOY_INBOX_DIR@@|${DEPLOY_INBOX_DIR}|g" -e "s|@@DEPLOY_OUTBOX_DIR@@|${DEPLOY_OUTBOX_DIR}|g" "$1"; }
 unit_matches()     { [[ "$(render "${REPO_ROOT}/infra/systemd/autoops-runner.service.tpl")" == "$(cat "$UNIT")" ]]; }
 unit_prop()        { [[ "$(systemctl show autoops-runner --property="$1" --value)" == "$2" ]]; }
 sandbox_on()       { local d; for d in NoNewPrivileges ProtectHome PrivateTmp; do unit_prop "$d" yes || return 1; done; unit_prop ProtectSystem full; }
@@ -38,8 +43,11 @@ read_only_root()   { [[ "$(inspect '{{.HostConfig.ReadonlyRootfs}}')" == true ]]
 non_root_user()    { local u; u="$(inspect '{{.Config.User}}')"; [[ -n $u && $u != root && $u != 0 && $u != 0:* ]]; }
 no_ports()         { [[ "$(inspect '{{.HostConfig.PortBindings}}')" == 'map[]' ]]; }
 no_docker_sock()   { ! inspect '{{json .Mounts}}{{json .HostConfig.Binds}}' | grep -q 'docker\.sock'; }
-# Mounts: named volumes and tmpfs, plus the token Compose secret (a bind of one file); nothing else from the host.
-no_host_mounts()   { [[ -z "$(inspect '{{range .Mounts}}{{if eq .Type "bind"}}{{.Destination}}{{"\n"}}{{end}}{{end}}' | grep -vx "$SECRET_MOUNT")" ]]; }
+# Mounts: named volumes and tmpfs, the token Compose secret (a bind of one file) and EXACTLY two host binds: the deploy
+# inbox (read-write) and outbox (read-only), with these sources and targets. Nothing else from the host.
+mounts()           { inspect '{{range .Mounts}}{{.Type}} {{.Destination}} {{.RW}} {{.Source}}{{"\n"}}{{end}}'; }
+bind_mounts()      { mounts | awk '$1 == "bind" && $2 != "'"$SECRET_MOUNT"'"' | sort; }
+only_spool_mounts() { [[ "$(bind_mounts)" == "$(printf 'bind /deploy/inbox true %s\nbind /deploy/outbox false %s' "$DEPLOY_INBOX_DIR" "$DEPLOY_OUTBOX_DIR")" ]]; }
 only_runner_net()  { [[ "$(inspect '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}')" == "${NETWORK} " ]]; }
 connected()        { docker logs "$CID" 2>&1 | grep -q 'Listening for Jobs'; }
 # The registration token is a one-time secret: not in the repository nor APP_DIR, not accessible to group/others.
@@ -69,7 +77,7 @@ if [[ -n $CID ]]; then
   check "contenedor corre con un usuario no root" non_root_user
   check "contenedor sin puertos publicados" no_ports
   check "contenedor sin docker.sock" no_docker_sock
-  check "contenedor sin montajes del host (solo volumen, tmpfs y el secret del token)" no_host_mounts
+  check "contenedor con solo dos montajes del host: inbox (rw) y outbox (ro) del deploy" only_spool_mounts
   check "contenedor conectado solo a ${NETWORK}" only_runner_net
   check "runner conectado a GitHub (Listening for Jobs)" connected
 fi

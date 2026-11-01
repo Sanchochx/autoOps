@@ -5,7 +5,7 @@
 #   docker compose -f infra/runner/docker-compose.yml --env-file .env up -d
 #
 # The runner executes workflow code, so it gets the least it can work with: no Docker socket, no Docker client, no host
-# mounts, no published ports, no capabilities, a read-only root filesystem and a network with nothing else on it.
+# mounts except the two deploy spool directories (US-CICD-004), no published ports, no capabilities, a read-only root filesystem and a network with nothing else on it.
 # The `runner-compose` job of ci.yml fails if any of that is removed.
 name: autoops-runner
 
@@ -37,10 +37,30 @@ services:
       HOME: /tmp
       DOTNET_CLI_HOME: /tmp
       DOTNET_NOLOGO: "1"
+      # Graceful shutdown: without it run.sh has no signal trap, SIGTERM kills the bash script and orphans the
+      # listener, which Docker then SIGKILLs without deleting its GitHub session (next start: "A session for this
+      # runner already exists", Conflict, for ~3 min). With it run.sh forwards INT to the listener, which closes the session.
+      RUNNER_MANUALLY_TRAP_SIG: "1"
+      # Where the jobs find the deploy spool (scripts/ci/request_deploy.sh); the container paths are fixed.
+      DEPLOY_INBOX_DIR: /deploy/inbox
+      DEPLOY_OUTBOX_DIR: /deploy/outbox
     secrets: [runner_token]
     volumes:
       # Working copy of the runner and its credentials (.runner, .credentials*): survives restarts.
       - runner_home:/home/runner/runner
+      # The ONLY two host mounts (US-CICD-004): the runner asks for a deploy by writing `request` into the inbox and
+      # reads the outcome from the outbox (read-only: it cannot forge a status). The sources are the host spool
+      # directories created by 70_systemd.sh; they must already exist (create_host_path: false), so Docker never
+      # creates them as root. The `runner-compose` CI job fails on a third mount, a writable outbox or any other source.
+      - type: bind
+        source: ${DEPLOY_INBOX_DIR:?define DEPLOY_INBOX_DIR (host spool, see .env.example)}
+        target: /deploy/inbox
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEPLOY_OUTBOX_DIR:?define DEPLOY_OUTBOX_DIR (host spool, see .env.example)}
+        target: /deploy/outbox
+        read_only: true
+        bind: {create_host_path: false}
     tmpfs:
       # Every job starts from an empty workspace, and nothing a job writes survives a restart.
       - /tmp:mode=1777,size=512m

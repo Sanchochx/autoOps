@@ -13,7 +13,10 @@
 #                                      self-hosted runner). Required only while the runner is not registered yet; set
 #                                      it in the environment, provision.env or ${APP_DIR}/.env. Outside the repository
 #                                      and APP_DIR; this script makes it 10001:10001 0600 (the UID of the runner).
-#   RUNNER_CONNECT_TIMEOUT=120         seconds to wait for "Listening for Jobs"
+#   RUNNER_CONNECT_TIMEOUT=300         seconds to wait for "Listening for Jobs" (a session left open by an unclean
+#                                      shutdown takes ~3 min to expire on GitHub's side)
+# The deploy spool (US-CICD-004) is mounted into the runner: DEPLOY_STATE_DIR / DEPLOY_INBOX_DIR / DEPLOY_OUTBOX_DIR are
+# read from ${APP_DIR}/.env with the defaults of 70_systemd.sh, which must have created them (it runs before this step).
 # Steps: validate -> build the image -> register once (credentials stay in the runner_home volume) -> install, enable
 # and start the unit -> wait until the runner is connected. See infra/runner/README.md.
 set -euo pipefail
@@ -31,7 +34,7 @@ SERVICE_USER="${SERVICE_USER:-autoops}"
 APP_DIR="${APP_DIR:-/opt/autoops}"
 APP_ENV_FILE="${APP_ENV_FILE:-${APP_DIR}/.env}"
 COMPOSE_FILE="${APP_DIR}/infra/runner/docker-compose.yml"
-CONNECT_TIMEOUT="${RUNNER_CONNECT_TIMEOUT:-120}"
+CONNECT_TIMEOUT="${RUNNER_CONNECT_TIMEOUT:-300}"
 
 [[ $APP_DIR == /* && $APP_DIR =~ ^[A-Za-z0-9_./-]+$ ]] || die "APP_DIR inválido: '${APP_DIR}'."
 [[ -f $APP_ENV_FILE ]] || die "No existe ${APP_ENV_FILE}."
@@ -59,6 +62,15 @@ in_group "$SERVICE_USER" docker || die "${SERVICE_USER} no pertenece al grupo do
 [[ -x /usr/bin/docker ]] || die "No existe /usr/bin/docker (ejecuta antes 60_docker.sh)."
 [[ -f $COMPOSE_FILE ]] || die "No existe ${COMPOSE_FILE}."
 [[ -f $UNIT_SRC ]] || die "No existe la plantilla ${UNIT_SRC}."
+# The deploy spool: same settings and defaults as 70_systemd.sh. The directories must exist (70_systemd.sh creates
+# them with the right owner and mode); Docker is told never to create them.
+DEPLOY_STATE_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_STATE_DIR)"; DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${APP_DIR}/.deploy}"
+DEPLOY_INBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_INBOX_DIR)"; DEPLOY_INBOX_DIR="${DEPLOY_INBOX_DIR:-${DEPLOY_STATE_DIR}/inbox}"
+DEPLOY_OUTBOX_DIR="$(env_value "$APP_ENV_FILE" DEPLOY_OUTBOX_DIR)"; DEPLOY_OUTBOX_DIR="${DEPLOY_OUTBOX_DIR:-${DEPLOY_STATE_DIR}/outbox}"
+for _d in "$DEPLOY_INBOX_DIR" "$DEPLOY_OUTBOX_DIR"; do
+  [[ $_d == /* && $_d =~ ^[A-Za-z0-9_./-]+$ ]] || die "Ruta de deploy inválida en ${APP_ENV_FILE}: '${_d}'."
+  [[ -d $_d ]] || die "No existe ${_d}: ejecuta antes 70_systemd.sh (crea el spool del deploy)."
+done
 # The unit writes its Docker config here (70_systemd.sh creates it too).
 install -d -m 700 -o "$SERVICE_USER" -g "$SERVICE_USER" "${APP_DIR}/.docker"
 
@@ -70,6 +82,7 @@ compose() {
   env -u RUNNER_REPO_URL -u RUNNER_LABELS -u RUNNER_NAME -u RUNNER_VERSION -u RUNNER_SHA256 \
     -u RUNNER_CPUS -u RUNNER_MEMORY_LIMIT -u RUNNER_PIDS_LIMIT -u RUNNER_WORKSPACE_SIZE \
     "RUNNER_REGISTRATION_TOKEN_FILE=${token_file}" \
+    "DEPLOY_INBOX_DIR=${DEPLOY_INBOX_DIR}" "DEPLOY_OUTBOX_DIR=${DEPLOY_OUTBOX_DIR}" \
     docker compose -f "$COMPOSE_FILE" --env-file "$APP_ENV_FILE" "$@"
 }
 
@@ -121,7 +134,8 @@ else
 fi
 
 # --- The unit: render, verify, install, enable and start ---------------------------------------
-rendered="$(sed -e "s|@@APP_DIR@@|${APP_DIR}|g" -e "s|@@SERVICE_USER@@|${SERVICE_USER}|g" "$UNIT_SRC")"
+rendered="$(sed -e "s|@@APP_DIR@@|${APP_DIR}|g" -e "s|@@SERVICE_USER@@|${SERVICE_USER}|g" \
+  -e "s|@@DEPLOY_INBOX_DIR@@|${DEPLOY_INBOX_DIR}|g" -e "s|@@DEPLOY_OUTBOX_DIR@@|${DEPLOY_OUTBOX_DIR}|g" "$UNIT_SRC")"
 tmp="$(mktemp --suffix=".service")"
 printf '%s\n' "$rendered" >"$tmp"
 if ! systemd-analyze verify "$tmp" >/dev/null 2>&1; then

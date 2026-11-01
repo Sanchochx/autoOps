@@ -1,5 +1,5 @@
 # Managed by scripts/provision/75_runner.sh (rendered from infra/systemd/autoops-runner.service.tpl).
-# Placeholders: @@APP_DIR@@ and @@SERVICE_USER@@. Do not edit /etc/systemd/system/autoops-runner.service by hand.
+# Placeholders: @@APP_DIR@@, @@SERVICE_USER@@, @@DEPLOY_INBOX_DIR@@ and @@DEPLOY_OUTBOX_DIR@@. Do not edit /etc/systemd/system/autoops-runner.service by hand.
 # The self-hosted runner (US-CICD-003) is a Compose project of its own, so autoops.service (`up --remove-orphans`,
 # `down`) never touches it and a runner failure never touches the stack.
 [Unit]
@@ -23,6 +23,10 @@ Environment=DOCKER_CLI_HINTS=false
 # The registration token is only needed once, by 75_runner.sh; afterwards the runner keeps its own credentials in
 # its volume. Empty here (it wins over .env) so the service never mounts, and never needs, the token file.
 Environment=RUNNER_REGISTRATION_TOKEN_FILE=
+# Host sides of the only two bind mounts of the runner (US-CICD-004): the deploy spool created by 70_systemd.sh. The
+# values are resolved by 75_runner.sh with the same defaults as 70_systemd.sh; they win over .env, so both always agree.
+Environment=DEPLOY_INBOX_DIR=@@DEPLOY_INBOX_DIR@@
+Environment=DEPLOY_OUTBOX_DIR=@@DEPLOY_OUTBOX_DIR@@
 
 # The image is built by 75_runner.sh (--no-build); the settings (RUNNER_*) come from the same .env as the stack.
 ExecStart=/usr/bin/docker compose -f @@APP_DIR@@/infra/runner/docker-compose.yml --env-file @@APP_DIR@@/.env up --no-build --abort-on-container-exit --no-color --no-log-prefix

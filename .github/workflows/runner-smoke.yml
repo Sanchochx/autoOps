@@ -1,7 +1,8 @@
 name: Runner smoke
 
-# US-CICD-003 AC-4. Proves, from INSIDE the self-hosted runner, that it can reach GitHub and nothing else: no Docker
-# socket, no Docker client, no way to resolve the application's services, a read-only root. Manual only, and the job
+# US-CICD-003 AC-4 / US-CICD-004 AC-4. Proves, from INSIDE the self-hosted runner, that it can reach GitHub and nothing else:
+# no Docker socket, no Docker client, no way to resolve the application's services, a read-only root, no view of the
+# host's .env or deploy state, and the deploy spool as the only door (inbox writable, outbox read-only). Manual only, and the job
 # declares the `production` environment (limited to `main`), so a dispatch from any other branch is rejected before it
 # reaches the host. No third-party actions: everything below is plain shell. scripts/ci/check_runner_workflows.sh
 # keeps every workflow that uses the runner within these rules.
@@ -41,6 +42,20 @@ jobs:
           for name in postgres api-gateway mcp-logs; do
             check "the name '${name}' does not resolve" not resolves "${name}"
           done
+          # Deploy spool (US-CICD-004): the inbox accepts a file (removed right away, under a name the host ignores);
+          # the outbox must refuse every write; the host's secrets and state are simply not there.
+          inbox="${DEPLOY_INBOX_DIR:-/deploy/inbox}"
+          outbox="${DEPLOY_OUTBOX_DIR:-/deploy/outbox}"
+          write_inbox() { touch "${inbox}/.smoke-probe" && rm -f "${inbox}/.smoke-probe"; }
+          write_outbox() { touch "${outbox}/.smoke-probe" || return 1; rm -f "${outbox}/.smoke-probe"; }
+          forge_status() { printf 'state=succeeded\n' >"${outbox}/status"; }
+          outbox_is_ro_mount() { awk -v m="${outbox}" '$5 == m { print $6 }' /proc/self/mountinfo | grep -Eq '(^|,)ro(,|$)'; }
+          visible() { for p in /opt/autoops/.env /opt/autoops/.deploy /opt/autoops /var/run/docker.sock /run/docker.sock; do [ -e "$p" ] && return 0; done; return 1; }
+          check "can write to the deploy inbox" write_inbox
+          check "cannot write to the deploy outbox" not write_outbox
+          check "cannot forge the deploy status" not forge_status
+          check "the outbox is a read-only mount" outbox_is_ro_mount
+          check "the host .env, .deploy and Docker socket are not visible" not visible
           check "HTTPS to api.github.com works" curl -fsS --max-time 10 -o /dev/null https://api.github.com/zen
 
           exit "${failed}"

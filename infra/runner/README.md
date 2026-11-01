@@ -1,7 +1,8 @@
 # Self-hosted runner (US-CICD-003)
 
 A GitHub Actions runner that lives on the AutoOps host, in a locked-down container, for the deploy job of
-US-CICD-004/005. It only makes outbound HTTPS connections: no inbound port, no `docker.sock`, no host mounts.
+US-CICD-004/005. It only makes outbound HTTPS connections: no inbound port, no `docker.sock`, and no host mounts except
+the two deploy spool directories ([below](#the-deploy-channel-the-only-door-to-the-host)).
 
 | | |
 |---|---|
@@ -21,11 +22,42 @@ malicious and limits what that can reach.
 | Make outbound HTTPS connections (GitHub, GHCR) | Receive any inbound connection: no `ports:`, UFW unchanged |
 | Write to `/tmp`, its job workspace and its credentials volume | Write to its root filesystem (`read_only: true`) |
 | Use up to the CPU, memory and PID limits | Gain privileges: non-root (UID 10001), `cap_drop: [ALL]`, `no-new-privileges`, never `privileged` |
-| Run `bash`, `curl`, `jq` and `git` | Touch Docker: no `docker.sock`, no Docker client, no host bind mounts |
+| Run `bash`, `curl`, `jq` and `git` | Touch Docker: no `docker.sock`, no Docker client, no host bind mounts besides the two below |
+| Leave a deploy request in the inbox and read the outcome from the outbox | Write the outbox (read-only mount), see `.env`, `.deploy/` state or any other host path |
 | | Reach `postgres`, the gateway or the MCP server: `runner_net` is attached to nothing else |
 | | Keep anything between restarts except its own credentials: the workspace is a `tmpfs` |
 
-What the runner may ask of the host (handing over a validated image tag) is designed in US-CICD-004.
+What the runner may ask of the host is a deploy of a commit SHA, through the channel below; the host validates it, pulls the
+images itself and applies them (US-CICD-004).
+
+## The deploy channel (the only door to the host)
+
+Exactly **two** host bind mounts, fixed targets, sources from variables (the spool directories `70_systemd.sh` creates):
+
+| Mount in the container | Host source | Mode | Use |
+|---|---|---|---|
+| `/deploy/inbox` | `DEPLOY_INBOX_DIR` | read-write (owner UID 10001) | the runner writes `request` here |
+| `/deploy/outbox` | `DEPLOY_OUTBOX_DIR` | **read-only** | the host writes `status` here; the runner can only read it |
+
+`create_host_path: false`: Docker never creates a missing source (it would be root-owned); `75_runner.sh` stops with a
+clear message if the spool does not exist yet (run `70_systemd.sh` first). A third mount, a writable outbox, the
+Docker socket or any other source turns the `runner-compose` CI job red
+([`check_runner_compose.sh`](../../scripts/ci/check_runner_compose.sh), proven by `test_runner_compose_guard.sh`), and
+`verify.sh` (`checks/75_runner.sh`) asserts the same on the running container.
+
+A deploy job calls [`scripts/ci/request_deploy.sh`](../../scripts/ci/request_deploy.sh):
+
+```bash
+scripts/ci/request_deploy.sh --tag "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"   # both default to those variables
+```
+
+It writes `tag=<sha>` and `run_id=<digits>` to a temporary file in the inbox and renames it to `request` (so the
+`autoops-deploy.path` unit never sees a half-written file), then polls `status` until one appears with the same `run_id`
+and `tag` that **started after the request was written** (a workflow re-run keeps its run id, so an older status of the
+same run is ignored). Exit codes: `0` succeeded, `1` rolled back, `2` failed, `3` timeout (the request is withdrawn so it
+cannot deploy later), `4` spool unusable or a request already pending, `64` usage. `DEPLOY_WAIT_TIMEOUT` (900 s) and
+`DEPLOY_POLL_INTERVAL` (3 s) are optional. The host re-validates everything, so the checks in the script only fail fast;
+the flow, threat model and operator commands are in `infra/deploy/README.md` (US-CICD-004 AC-5).
 
 Accepted trade-off: the runner is **not ephemeral** (it does not deregister after one job). An ephemeral runner needs a
 long-lived credential on the host able to create registration tokens (a PAT or a GitHub App), a bigger secret than the
@@ -90,7 +122,8 @@ Read from `${APP_DIR}/.env` (the only source: both Compose and the unit use it).
 | `RUNNER_VERSION` / `RUNNER_SHA256` | pin in the `Dockerfile` | Override the pinned runner release; change both together |
 | `RUNNER_CPUS`, `RUNNER_MEMORY_LIMIT`, `RUNNER_PIDS_LIMIT`, `RUNNER_WORKSPACE_SIZE` | `2`, `2g`, `512`, `2g` | Limits and size of the job workspace `tmpfs` |
 | `RUNNER_REGISTRATION_TOKEN_FILE` | none | One-time token file, only while registering (environment, `provision.env` or `.env`) |
-| `RUNNER_CONNECT_TIMEOUT` | `120` | Seconds `75_runner.sh` waits for `Listening for Jobs` |
+| `RUNNER_CONNECT_TIMEOUT` | `300` | Seconds `75_runner.sh` waits for `Listening for Jobs` |
+| `DEPLOY_STATE_DIR`, `DEPLOY_INBOX_DIR`, `DEPLOY_OUTBOX_DIR` | `${APP_DIR}/.deploy`, `<state>/inbox`, `<state>/outbox` | Host sides of the two mounts; same defaults as `70_systemd.sh`, resolved by `75_runner.sh` and written into the unit |
 
 ## Provision
 
@@ -150,7 +183,9 @@ Removing `RUNNER_REPO_URL` from `.env` makes `bootstrap.sh` and `verify.sh` skip
 
 `.github/workflows/runner-smoke.yml` (manual, `environment: production`, `permissions: {}`, no third-party actions)
 runs on the runner and asserts from the inside that it is not root, has no `/var/run/docker.sock` and no `docker`
-client, has a read-only root, cannot resolve `postgres`, `api-gateway` or `mcp-logs`, and can reach `api.github.com`.
+client, has a read-only root, cannot resolve `postgres`, `api-gateway` or `mcp-logs`, can reach `api.github.com`, and (US-CICD-004)
+can write to the deploy inbox but not to the outbox (it is a read-only mount, and a forged `status` fails), and sees no host
+`.env`, `.deploy/` or Docker socket.
 
 ```bash
 gh workflow run runner-smoke.yml --ref main     # green: every line `ok`

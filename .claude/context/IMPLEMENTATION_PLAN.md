@@ -21,8 +21,8 @@
 ├─────────────────────────────────────────────────────────────┤
 │  Total User Stories:             31                         │
 │  ✅ Completed:                   29                         │
-│  ⏳ In Progress:                 0                          │
-│  ⏸️  Pending:                    2                          │
+│  ⏳ In Progress:                 1                          │
+│  ⏸️  Pending:                    1                          │
 │                                                             │
 │  Progress: [█████████░] 94% (29/31)                          │
 └─────────────────────────────────────────────────────────────┘
@@ -57,7 +57,7 @@
 | 11 | OS Hardening & Runtime | SYS | 4 | 4 | 0 | 0 | [██████████] 100% |
 | 12 | Provisioning | PROV | 1 | 1 | 0 | 0 | [██████████] 100% |
 | 13 | Reverse Proxy & TLS (Traefik, self-signed / Let's Encrypt) | PROXY | 3 | 3 | 0 | 0 | [██████████] 100% |
-| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 3 | 0 | 2 | [██████░░░░] 60% |
+| 14 | CI/CD (GitHub Actions, GHCR, self-hosted runner) | CICD | 5 | 3 | 1 | 1 | [██████░░░░] 60% |
 
 ---
 
@@ -460,11 +460,12 @@
 - **Dependencies:** US-CICD-002, US-SYS-003
 - **Acceptance Criteria:** 5
 
-#### [ ] US-CICD-004: Pull-Based Deployment on the Host *(to be written)*
+#### [~] US-CICD-004: Pull-Based Deployment on the Host
+- **File:** `context/user_stories/epic_14_cicd/US-CICD-004_pull_based_deploy.md`
 - **Priority:** CRITICAL
 - **Estimate:** 8 pts
 - **Dependencies:** US-CICD-003, US-SYS-004
-- **Scope:** host-side deploy action with strict tag validation, image pull, migrations, `systemctl reload autoops`, health-gate and automatic rollback to the previous tag; handoff mechanism from the runner to the host.
+- **Acceptance Criteria:** 5
 
 #### [ ] US-CICD-005: CD Workflow, Smoke Test and Phase Closing *(to be written)*
 - **Priority:** HIGH
