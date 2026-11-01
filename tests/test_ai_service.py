@@ -73,7 +73,13 @@ class FakeGraph:
 
 TRIAGE_UPDATES: list[dict[str, Any]] = [
     {"triage_node": {"severity": "critical", "agent_notes": ["triage: severidad = critical"]}},
-    {"investigator_node": {"status": "investigated", "agent_notes": ["investigator: ok"]}},
+    {
+        "investigator_node": {
+            "status": "investigated",
+            "analysis": "Pool de conexiones saturado",
+            "agent_notes": ["investigator: Pool de conexiones saturado"],
+        }
+    },
 ]
 
 
@@ -99,8 +105,10 @@ async def test_updates_severity_and_status_from_graph(
     assert graph.inputs == [{"ticket_id": str(ticket.id), "description": "La BD responde lento"}]
     assert graph.stream_modes == ["updates"]
     assert ticket.severity is TicketSeverity.CRITICAL
-    assert ticket.status is TicketStatus.INVESTIGATING
-    session.commit.assert_awaited_once()
+    assert ticket.analysis == "Pool de conexiones saturado"
+    assert ticket.status is TicketStatus.ESCALATED
+    # One commit when the graph starts (investigating), one with the result (escalated).
+    assert session.commit.await_count == 2
 
 
 async def test_emits_one_event_per_step_with_contract(
@@ -141,8 +149,35 @@ async def test_graph_failure_keeps_ticket_and_does_not_raise(
 
     assert ticket.severity is TicketSeverity.MEDIUM
     assert ticket.status is TicketStatus.OPEN
-    session.commit.assert_not_awaited()
+    assert ticket.analysis is None
     assert _sent(ws_manager)[-1]["node"] == "error"
+
+
+async def test_graph_failure_after_start_returns_ticket_to_open(
+    session: AsyncMock, ticket: Ticket, ws_manager: MagicMock
+) -> None:
+    session.get.return_value = ticket
+    graph = FakeGraph(TRIAGE_UPDATES[:1], error=RuntimeError("LLM caído"))
+
+    await process_ticket_with_ai(ticket.id, graph, FakeSessionFactory(session), ws_manager)
+
+    assert ticket.status is TicketStatus.OPEN
+    assert ticket.analysis is None
+    # investigating on start, open again after the failure.
+    assert session.commit.await_count == 2
+
+
+async def test_ticket_deleted_during_run_is_discarded(
+    session: AsyncMock, ticket: Ticket, ws_manager: MagicMock
+) -> None:
+    session.get.side_effect = [ticket, None]
+
+    await process_ticket_with_ai(
+        ticket.id, FakeGraph(TRIAGE_UPDATES), FakeSessionFactory(session), ws_manager
+    )
+
+    assert session.commit.await_count == 1
+    assert "error" not in [e["node"] for e in _sent(ws_manager)]
 
 
 async def test_broadcast_failure_does_not_stop_triage(
@@ -155,8 +190,7 @@ async def test_broadcast_failure_does_not_stop_triage(
         ticket.id, FakeGraph(TRIAGE_UPDATES), FakeSessionFactory(session), ws_manager
     )
 
-    assert ticket.status is TicketStatus.INVESTIGATING
-    session.commit.assert_awaited_once()
+    assert ticket.status is TicketStatus.ESCALATED
 
 
 async def test_slow_client_does_not_block_triage(
@@ -177,4 +211,4 @@ async def test_slow_client_does_not_block_triage(
         timeout=3,
     )
 
-    assert ticket.status is TicketStatus.INVESTIGATING
+    assert ticket.status is TicketStatus.ESCALATED

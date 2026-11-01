@@ -22,8 +22,8 @@
 
 - [x] **AC-1: Base structure and instantiation**
   - The folder `services/ai-engine/` is created.
-  - `requirements.txt` is created with `langgraph`, `langchain-anthropic`, `langchain-core`, `pydantic` and `mcp<2` (MCP client).
-  - The model and its key are configured via environment variables (`ANTHROPIC_API_KEY` already exists; the model name is added to `.env.example`); no hardcoded values.
+  - `requirements.txt` is created with `langgraph`, `langchain-openai`, `langchain-core`, `pydantic` and `mcp<2` (MCP client).
+  - The model and its key are configured via environment variables (`OPENAI_API_KEY`, optional `OPENAI_BASE_URL` and `AI_MODEL_NAME`, all in `.env.example`); no hardcoded values.
   - **Verification:** dependencies install and the package modules import without errors.
 
 - [x] **AC-2: Graph State definition (`state.py`)**

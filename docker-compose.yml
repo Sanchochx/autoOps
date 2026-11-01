@@ -85,7 +85,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       MCP_LOGS_SERVER_URL: http://mcp-logs:${MCP_LOGS_PORT}/sse
       AI_MODEL_NAME: ${AI_MODEL_NAME:?define AI_MODEL_NAME en .env}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?define OPENAI_API_KEY en .env}
+      # Optional: another OpenAI-compatible endpoint; empty = default OpenAI endpoint.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
       LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
@@ -116,6 +118,8 @@ services:
       args:
         VITE_API_BASE_URL: /
         VITE_WS_BASE_URL: /ws
+        # Ticket list polling (ms, 0 disables); read from .env, default 5000.
+        VITE_TICKETS_POLL_INTERVAL_MS: ${VITE_TICKETS_POLL_INTERVAL_MS:-5000}
     restart: unless-stopped
     <<: *hardening
     read_only: true

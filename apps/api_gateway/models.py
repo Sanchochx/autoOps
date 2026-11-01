@@ -36,6 +36,7 @@ class Ticket(Base):
         default=TicketStatus.OPEN,
         server_default=TicketStatus.OPEN.value,
     )
+    analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

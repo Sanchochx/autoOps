@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api_gateway.database import get_db_session
@@ -53,6 +53,13 @@ async def list_tickets(session: AsyncSession = Depends(get_db_session)) -> list[
     """List tickets, most recent first."""
     result = await session.execute(select(Ticket).order_by(Ticket.created_at.desc()))
     return list(result.scalars().all())
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_tickets(session: AsyncSession = Depends(get_db_session)) -> None:
+    """Delete every ticket (irreversible); the dashboard asks for confirmation first."""
+    await session.execute(delete(Ticket))
+    await session.commit()
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)

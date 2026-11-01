@@ -187,8 +187,10 @@ DB_USER=autoops_user
 DB_PASSWORD=autoops_password
 
 # AI Models & Telemetry
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
+AI_MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=your_openai_key          # the AI engine (ChatOpenAI) reads this one
+OPENAI_BASE_URL=                        # optional OpenAI-compatible endpoint; empty = OpenAI
+DEEPSEEK_API_KEY=your_deepseek_key
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langsmith_key
 
