@@ -48,7 +48,7 @@ name in the inbox and renames it, so the path unit never sees a half-written req
 
 ```
 state=<running|succeeded|rolled_back|failed>
-reason=<none|invalid_request|preflight|provenance_unavailable|provenance_rejected|images_missing|pull_failed|backup_failed|migrate_failed|apply_failed|health_failed|unexpected_error>
+reason=<none|invalid_request|preflight|provenance_unavailable|provenance_rejected|images_missing|pull_failed|backup_failed|migrate_failed|apply_failed|health_failed|smoke_failed|unexpected_error>
 rollback=<none|ok|failed>
 tag=<sha>  previous=<sha>  run_id=<n>  started_at=<UTC>  finished_at=<UTC>
 ```
