@@ -80,8 +80,10 @@ jobs:
           DEPLOY_WAIT_TIMEOUT: "1500"
         run: |
           # GITHUB_SHA and GITHUB_RUN_ID are the defaults of the script. Exit: 0 succeeded, 1 rolled back, 2 failed, 3 no answer.
+          # Run through `bash`: the workspace is a tmpfs, which Docker mounts noexec, so the file is not directly executable
+          # there (and it must stay that way: a job cannot run a binary it drops in the workspace).
           set +e
-          outcome="$(scripts/ci/request_deploy.sh)"
+          outcome="$(bash scripts/ci/request_deploy.sh)"
           rc=$?
           set -e
           echo "$outcome"

@@ -26,6 +26,7 @@ malicious and limits what that can reach.
 | Leave a deploy request in the inbox and read the outcome from the outbox | Write the outbox (read-only mount), see `.env`, `.deploy/` state or any other host path |
 | | Reach `postgres`, the gateway or the MCP server: `runner_net` is attached to nothing else |
 | | Keep anything between restarts except its own credentials: the workspace is a `tmpfs` |
+| | Execute a file it leaves in the workspace: Docker mounts a `tmpfs` `noexec`, so workflows run repository scripts with `bash script.sh`, never `./script.sh` |
 
 What the runner may ask of the host is a deploy of a commit SHA, through the channel below; the host validates it, pulls the
 images itself and applies them (US-CICD-004).
