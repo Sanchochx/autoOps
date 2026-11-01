@@ -43,16 +43,16 @@ autoops/
 
 ## Prerequisites
 
-The supported way to run AutoOps is **Docker Compose on Linux** (Ubuntu Server or Ubuntu on WSL2/VirtualBox).
+**AutoOps runs on Linux only**, with Docker Compose (tested on Ubuntu Server, on bare metal or in a VM).
 
 - Docker Engine with the Compose plugin
 - `git`, `openssl`, `curl` and `sudo` (the TLS script needs root)
 - An LLM API key (`OPENAI_API_KEY`; the AI engine uses `ChatOpenAI`, optionally against another OpenAI-compatible
   endpoint through `OPENAI_BASE_URL`)
-- For local development without containers: Python 3.11+, Node.js 22 (see `apps/frontend/.nvmrc`) and PostgreSQL
+- To run the tests from the host: Python 3.11+ and Node.js 22 (see `apps/frontend/.nvmrc`)
 
-> **Windows:** not supported natively. Clone and run inside WSL2 (Ubuntu) so shell scripts keep LF line endings and
-> `65_tls.sh` runs; a Windows checkout with `core.autocrlf=true` breaks `infra/traefik/entrypoint.sh`.
+> **Windows and macOS are not supported.** The provisioning and operations scripts are Bash, and the TLS script
+> needs root on Linux.
 
 ## Quickstart (Docker Compose behind Traefik, HTTPS)
 
@@ -83,7 +83,7 @@ docker compose --profile tools run --rm migrate
 # 5. Make the domain resolve and trust the local CA (on the machine that runs the browser)
 echo "127.0.0.1 autoops.local" | sudo tee -a /etc/hosts        # use the VM's IP if the browser is elsewhere
 sudo cp tls/ca/ca.crt /usr/local/share/ca-certificates/autoops-local-ca.crt && sudo update-ca-certificates
-# Firefox keeps its own store; see infra/traefik/README.md ("Trusting the local CA") for macOS/Windows/Firefox.
+# Firefox keeps its own store; see infra/traefik/README.md ("Trusting the local CA").
 ```
 
 Open `https://autoops.local`: create a ticket and watch the agents in the console. It goes **Abierto → Investigando →
@@ -101,16 +101,6 @@ pytest tests -v                                                      # backend t
 # Post-deploy checks through HTTPS (run from the repository root, one line each)
 SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
 E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
-```
-
-### Local development without containers
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev-db.yml up -d postgres   # Postgres on 127.0.0.1:$DB_PORT
-# in .env: DATABASE_URL=postgresql+asyncpg://<DB_USER>:<DB_PASSWORD>@localhost:<DB_PORT>/<DB_NAME>
-alembic -c apps/api_gateway/alembic.ini upgrade head
-PYTHONPATH=services/ai-engine python -m apps.api_gateway.run     # API on http://localhost:8000
-cd apps/frontend && npm install && npm run dev                    # UI on http://localhost:5173
 ```
 
 ### Current limitations
