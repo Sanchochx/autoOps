@@ -51,12 +51,15 @@
   - **Verification:** Vitest covers the guard with and without `analysis` and the new status; after the agent finishes and the page is reloaded (F5) the same analysis and `Escalado` badge appear; the grid layout and the console are visually unchanged.
 
 - [ ] **AC-5: Rollout, Documentation and Evidence**
-  - The `migrate` service applies `0002` in `docker compose up` on an existing database without data loss; README/US notes updated (`analysis`, `escalated`, the failure rule); `IMPLEMENTATION_PLAN.md` gets the Epic 16 row; the `ci` check is green.
-  - **Verification:** on the running stack, create a ticket, wait until it shows `Escalado`, reload the page and confirm the analysis is still there; stop the LLM (invalid key) and confirm a new ticket returns to `Abierto` with the error visible in the console.
+  - `0002` is applied explicitly with `docker compose --profile tools run --rm migrate` (the `migrate` service is deliberately **not** run by `up`; the CD deploy runs it as a step) on an existing database without data loss; README/US notes updated (`analysis`, `escalated`, the failure rule); `IMPLEMENTATION_PLAN.md` gets the Epic 16 row; the `ci` check is green.
+  - **Verification:** on the running stack (after the explicit migrate step), create a ticket, wait until it shows `Escalado`, reload the page and confirm the analysis is still there; stop the LLM (invalid key) and confirm a new ticket returns to `Abierto` with the error visible in the console.
 
 ---
 
 ## Technical Notes
+
+- **Incident during AC-5:** a manual `docker compose up -d --build` returned HTTP 500 on `/api/v1/tickets` (`column tickets.analysis does not exist`) because the migration had not been applied: `migrate` lives in the `tools` profile and `up` never runs it. The code was correct; the earlier claim that `up` applied the migration was wrong. Fix: run the migrate step (below) after pulling a release that adds a migration.
+  `sudo docker compose --profile tools run --rm migrate`
 
 - **AC-1 verification gap:** no PostgreSQL server was available where this was implemented (client tools only), so the migration was checked as generated SQL (`alembic upgrade 0001:0002 --sql` / `downgrade 0002:0001 --sql`: `ALTER TYPE ... ADD VALUE IF NOT EXISTS` outside the transaction, then `ADD COLUMN analysis TEXT`), not executed. Running it on a real database is part of AC-5.
 

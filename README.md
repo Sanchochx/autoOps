@@ -78,6 +78,7 @@ Without those variables `docker compose up -d --build` builds locally and tags `
 
 ```bash
 alembic -c apps/api_gateway/alembic.ini upgrade head     # apply migrations
+# Under Docker Compose `up` does NOT migrate; run: docker compose --profile tools run --rm migrate
 alembic -c apps/api_gateway/alembic.ini current          # current revision
 alembic -c apps/api_gateway/alembic.ini revision --autogenerate -m "description"
 ```
