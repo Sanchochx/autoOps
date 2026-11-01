@@ -28,7 +28,15 @@ check "all capabilities dropped" 'all(.services[]; (.cap_drop // []) | index("AL
 check "no capabilities added" 'all(.services[]; (.cap_add // []) | length == 0)'
 check "no-new-privileges" 'all(.services[]; (.security_opt // []) | index("no-new-privileges:true") != null)'
 check "read-only root filesystem" 'all(.services[]; .read_only == true)'
-check "no host bind mounts" 'all(.services[]; (.volumes // []) | all(.type != "bind"))'
+# US-CICD-004: the ONLY host mounts are the deploy spool: inbox read-write, outbox read-only, fixed targets, and Docker
+# must not create the sources (they are made by 70_systemd.sh with the right owner). Anything else turns this red.
+check "host bind mounts are exactly the deploy inbox (rw) and outbox (ro)" \
+  'all(.services[]; [(.volumes // [])[] | select(.type == "bind")] | sort_by(.target)
+     | map({target, read_only: (.read_only // false), create: (.bind.create_host_path | if . == null then true else . end), abs: (.source | startswith("/"))})
+     == [{target: "/deploy/inbox", read_only: false, create: false, abs: true},
+         {target: "/deploy/outbox", read_only: true, create: false, abs: true}])'
+check "the two spool sources differ and are not the Docker socket or the filesystem root" \
+  'all(.services[]; [(.volumes // [])[] | select(.type == "bind") | .source] | (unique | length == 2) and all(. != "/" and (test("/var/run|/run/docker") | not)))'
 check "no devices, no host PID/IPC" 'all(.services[]; (.devices // []) == [] and .pid == null and .ipc == null)'
 check "a single dedicated network, not external" '((.networks // {}) | keys) == ["runner_net"] and (.networks.runner_net.external // false) == false'
 check "memory, CPU and pids limits" 'all(.services[]; .mem_limit != null and .cpus != null and .pids_limit != null)'
