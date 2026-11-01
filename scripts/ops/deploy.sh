@@ -18,6 +18,10 @@
 #   DEPLOY_HEALTH_RETRIES=12  DEPLOY_HEALTH_INTERVAL=5  DEPLOY_LOCK_TIMEOUT=600  DEPLOY_WAIT_TIMEOUT=240
 #   IMAGE_REPOSITORY (required), DOMAIN, PROXY_HTTPS_PORT, TLS_MODE, TLS_DIR   as in .env.example
 #   DEPLOY_REPO=<owner>/<repo>       repository whose `main` is the source of truth (default: from RUNNER_REPO_URL)
+#   DEPLOY_NET_RETRIES=4  DEPLOY_NET_RETRY_DELAY=2   attempts and pause (s) of the read-only network checks (GitHub API, registry)
+#   DEPLOY_TLS_CLASSIC_KEX=1         opt-in: classic TLS key exchange for those checks (curl --curves X25519:secp256r1, docker
+#                                    GODEBUG=tlsmlkem=0). For networks that cut the post-quantum ClientHello of recent OpenSSL/Go
+#                                    (symptom: random `unexpected eof`, deploys failing with images_missing/provenance_unavailable)
 #   DEPLOY_BRANCH=main  DEPLOY_GITHUB_API=https://api.github.com  DEPLOY_IMAGE_SERVICES="api-gateway frontend mcp-logs traefik"
 # Guards (US-CICD-004 AC-2): a runner request (--request-file) must name a SHA that is on DEPLOY_BRANCH and not older than the
 # current release; any mode requires the images to exist in the registry. An operator's --tag skips the ancestry check (the
@@ -145,9 +149,21 @@ finish() {
 # compare_status <base> <head>: prints the GitHub compare status of head relative to base (ahead|identical|behind|diverged).
 # The response is parsed as JSON (its `files[]` entries have their own `status`); a transport error or an unparsable body
 # returns 1 so the caller fails closed.
+# net_retry <command...>: runs a read-only network check up to NET_RETRIES times, NET_RETRY_DELAY seconds apart. A flaky link must
+# not fail a deploy; a check that keeps failing still fails closed (the caller reports provenance_unavailable / images_missing).
+net_retry() {
+  local attempt=1
+  until "$@"; do
+    ((attempt >= NET_RETRIES)) && return 1
+    log "network check failed (attempt ${attempt}/${NET_RETRIES}), retrying in ${NET_RETRY_DELAY}s"
+    sleep "$NET_RETRY_DELAY"
+    attempt=$((attempt + 1))
+  done
+}
+
 compare_status() {
   local body
-  body="$(curl --fail --silent --show-error --max-time 15 --header 'Accept: application/vnd.github+json' \
+  body="$(net_retry curl --fail --silent --show-error --max-time 15 "${CURL_KEX[@]}" --header 'Accept: application/vnd.github+json' \
     "${GITHUB_API}/repos/${DEPLOY_REPO}/compare/${1}...${2}?per_page=1")" || return 1
   python3 -I -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<<"$body" 2>/dev/null
 }
@@ -171,11 +187,12 @@ verify_provenance() {
 }
 
 # verify_images <tag>: every image of the release exists in the registry (nothing is pulled).
+manifest_exists() { docker manifest inspect "$1" >/dev/null 2>&1; }
 verify_images() {
   local svc services
   read -ra services <<<"$IMAGE_SERVICES"
   for svc in "${services[@]}"; do
-    docker manifest inspect "${IMAGE_REPO}/${svc}:${1}" >/dev/null 2>&1 || { log "image ${IMAGE_REPO}/${svc}:${1} not found"; return 1; }
+    net_retry manifest_exists "${IMAGE_REPO}/${svc}:${1}" || { log "image ${IMAGE_REPO}/${svc}:${1} not found"; return 1; }
   done
 }
 
@@ -280,6 +297,13 @@ main() {
   HEALTH_INTERVAL="${DEPLOY_HEALTH_INTERVAL:-5}"
   WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT:-240}"
   LOCK_TIMEOUT="${DEPLOY_LOCK_TIMEOUT:-600}"
+  NET_RETRIES="${DEPLOY_NET_RETRIES:-4}"
+  NET_RETRY_DELAY="${DEPLOY_NET_RETRY_DELAY:-2}"
+  CURL_KEX=()
+  if [[ "$(env_value DEPLOY_TLS_CLASSIC_KEX)" == 1 ]]; then
+    CURL_KEX=(--curves X25519:secp256r1)
+    export GODEBUG="${GODEBUG:+${GODEBUG},}tlsmlkem=0"
+  fi
   IMAGE_REPO="$(env_value IMAGE_REPOSITORY)"
   IMAGE_SERVICES="${DEPLOY_IMAGE_SERVICES:-api-gateway frontend mcp-logs traefik}"
   DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
@@ -294,7 +318,7 @@ main() {
   [[ $DEPLOY_BRANCH =~ ^[A-Za-z0-9._/-]+$ ]] || die "DEPLOY_BRANCH is invalid."
   [[ $GITHUB_API == https://* && $GITHUB_API =~ ^[A-Za-z0-9:/._-]+$ ]] || die "DEPLOY_GITHUB_API must be an https URL."
   local n
-  for n in "$HEALTH_RETRIES" "$HEALTH_INTERVAL" "$WAIT_TIMEOUT" "$LOCK_TIMEOUT"; do
+  for n in "$HEALTH_RETRIES" "$HEALTH_INTERVAL" "$WAIT_TIMEOUT" "$LOCK_TIMEOUT" "$NET_RETRIES" "$NET_RETRY_DELAY"; do
     [[ $n =~ ^[0-9]+$ ]] || die "DEPLOY_* numeric settings must be non-negative integers."
   done
   [[ $HEALTH_PATH == /* && $HEALTH_PATH =~ ^[A-Za-z0-9_./-]+$ ]] || die "DEPLOY_HEALTH_PATH is invalid."
