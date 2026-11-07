@@ -9,6 +9,8 @@ interface TicketState {
   status: TicketsLoadStatus
   error: string | null
   refresh: () => Promise<void>
+  /** Drops everything loaded for the previous session (and any request still in flight). */
+  reset: () => void
 }
 
 let inFlight: AbortController | null = null
@@ -18,6 +20,11 @@ export const useTicketStore = create<TicketState>((set, get) => ({
   tickets: [],
   status: 'loading',
   error: null,
+  reset: () => {
+    inFlight?.abort()
+    inFlight = null
+    set({ tickets: [], status: 'loading', error: null })
+  },
   refresh: async () => {
     inFlight?.abort()
     const controller = new AbortController()

@@ -1,5 +1,6 @@
 import type { NewTicketInput, Ticket, TicketSeverity, TicketStatus } from '../models/ticket'
-import { buildApiUrl } from './buildApiUrl'
+import { authFetch } from '../../auth'
+import { buildApiUrl } from '../../../shared/buildApiUrl'
 
 const TICKETS_PATH = '/api/v1/tickets'
 const DEFAULT_SEVERITY: TicketSeverity = 'medium'
@@ -72,7 +73,7 @@ function requireTicket(value: unknown): Ticket {
 }
 
 export async function createTicket(input: NewTicketInput, signal?: AbortSignal): Promise<Ticket> {
-  const response = await fetch(ticketsUrl(), {
+  const response = await authFetch(ticketsUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...input, severity: DEFAULT_SEVERITY }),
@@ -84,18 +85,18 @@ export async function createTicket(input: NewTicketInput, signal?: AbortSignal):
 
 /** Deletes every ticket (irreversible). */
 export async function deleteAllTickets(signal?: AbortSignal): Promise<void> {
-  const response = await fetch(ticketsUrl(), { method: 'DELETE', signal })
+  const response = await authFetch(ticketsUrl(), { method: 'DELETE', signal })
   if (!response.ok) throw await errorFrom(response)
 }
 
 /** Deletes one ticket (irreversible). */
 export async function deleteTicket(id: string, signal?: AbortSignal): Promise<void> {
-  const response = await fetch(`${ticketsUrl()}/${encodeURIComponent(id)}`, { method: 'DELETE', signal })
+  const response = await authFetch(`${ticketsUrl()}/${encodeURIComponent(id)}`, { method: 'DELETE', signal })
   if (!response.ok) throw await errorFrom(response)
 }
 
 export async function listTickets(signal?: AbortSignal): Promise<Ticket[]> {
-  const response = await fetch(ticketsUrl(), { signal })
+  const response = await authFetch(ticketsUrl(), { signal })
   if (!response.ok) throw await errorFrom(response)
   const body: unknown = await response.json()
   if (!Array.isArray(body)) throw new ApiError(502, 'Invalid response from the server')
