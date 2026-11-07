@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api_gateway.config import get_cors_allowed_origins
-from apps.api_gateway.routers import health, tickets, ws
+from apps.api_gateway.routers import auth, health, tickets, ws
 
 
 def create_app() -> FastAPI:
@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.include_router(health.router)
+    application.include_router(auth.router)
     application.include_router(tickets.router)
     application.include_router(ws.router)
     return application

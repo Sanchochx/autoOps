@@ -65,3 +65,18 @@ class TicketUpdate(BaseModel):
     severity: TicketSeverity | None = None
     status: TicketStatus | None = None
     analysis: str | None = Field(default=None, strict=True)
+
+
+class LoginRequest(BaseModel):
+    """Credentials posted to the login endpoint (length-bounded to cap hashing work)."""
+
+    username: str = Field(min_length=1, max_length=64, strict=True)
+    password: str = Field(min_length=1, max_length=256, strict=True)
+
+
+class TokenResponse(BaseModel):
+    """Access token issued by a successful login."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
