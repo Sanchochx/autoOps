@@ -103,6 +103,15 @@ jobs:
           IMAGE_REPOSITORY: ${{ matrix.image_repository }}
           IMAGE_TAG: ${{ matrix.image_tag }}
         run: docker compose ${{ matrix.files }} config -q
+      # Fixed addresses must lie outside edge_net's dynamic ip_range, or a container can take Traefik's address.
+      - name: edge_net addressing (fixed IPs outside the dynamic range)
+        env:
+          TLS_MODE: ${{ matrix.tls_mode }}
+          ACME_EMAIL: ${{ matrix.tls_mode == 'acme' && 'ci@example.com' || '' }}
+          PUBLIC_SCHEME: ${{ matrix.tls_mode == 'acme' && 'https' || 'http' }}
+          IMAGE_REPOSITORY: ${{ matrix.image_repository }}
+          IMAGE_TAG: ${{ matrix.image_tag }}
+        run: scripts/ci/check_edge_net.sh
       - name: Images are named by repository and tag
         if: matrix.image == 'pinned'
         env:
@@ -211,6 +220,8 @@ jobs:
         run: scripts/ci/test_validate_env.sh
       - name: User creation wrapper (create_user.sh)
         run: scripts/ci/test_create_user.sh
+      - name: edge_net addressing guard (check_edge_net.sh)
+        run: scripts/ci/test_edge_net_guard.sh
 
   # Lints every tracked shell script with the shellcheck preinstalled on the runner (see .shellcheckrc).
   shellcheck:

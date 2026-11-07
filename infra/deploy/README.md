@@ -274,3 +274,19 @@ The release that adds JWT login needs one manual step on the host, in this order
 If this very first deploy fails and rolls back to the release without authentication, the rollback is verified with the new
 probe and smoke test, which that old release cannot satisfy (no `/api/v1/health`, tickets answer `200`): expect
 `rollback=failed` even though the previous containers are up. Check `docker compose ps` and sign off manually.
+
+## Changing the `edge_net` addressing (fix/edge-net-fixed-ip)
+
+`edge_net` has a fixed subnet and a dynamic `ip_range` (`EDGE_IP_RANGE`); Traefik's fixed address (`EDGE_TRAEFIK_IP`) lies outside
+that range so no other container can take it. Docker cannot change the IPAM of an existing network, so a host that already has
+`edge_net` without `ip_range` must recreate it once (about a minute of downtime; volumes, including `postgres_data`, are kept):
+
+1. Merge the fix and let CI go green (CI runs `check_edge_net.sh` on the resolved Compose model).
+2. On the host, in `/opt/autoops`: `docker compose down` (**without** `-v`), then confirm the network is gone:
+   `docker network ls | grep edge_net` prints nothing (if it lingers: `docker network rm <project>_edge_net`).
+3. Update the checkout / re-run the deploy of the merged `main` (re-run the failed deploy job, or `scripts/ops/deploy.sh`).
+   `up --wait` recreates `edge_net` with the new `ip_range`.
+4. Verify: `docker network inspect <project>_edge_net --format '{{json .IPAM.Config}}'` shows the `IPRange`, and
+   `docker inspect <project>-traefik-1 --format '{{(index .NetworkSettings.Networks "<project>_edge_net").IPAddress}}'` prints
+   `172.30.250.2`; the smoke test passes.
+5. Optional repeat check: `docker compose down && docker compose up -d --wait` twice in a row; Traefik must be healthy both times.

@@ -208,11 +208,15 @@ services:
 networks:
   edge_net:
     driver: bridge
-    # Fixed subnet so Traefik has a known address (FORWARDED_ALLOW_IPS above). Change EDGE_SUBNET and
-    # EDGE_TRAEFIK_IP together if the range collides with another network on the host.
+    # Fixed subnet so Traefik has a known address (FORWARDED_ALLOW_IPS above). Docker hands the dynamic
+    # addresses of the other services (gateway, frontend) out of ip_range ONLY, and Traefik's fixed address
+    # lies outside it: otherwise whichever container starts first could take it and Traefik would fail with
+    # "Address already in use". Change the three EDGE_* values together if the range collides with another
+    # network on the host; scripts/ci/check_edge_net.sh verifies the resolved model.
     ipam:
       config:
         - subnet: ${EDGE_SUBNET:-172.30.250.0/24}
+          ip_range: ${EDGE_IP_RANGE:-172.30.250.128/25}
   backend_net:
     driver: bridge
     internal: true
