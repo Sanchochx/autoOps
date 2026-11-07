@@ -35,6 +35,7 @@ browser ──► :PROXY_HTTP_PORT ─► traefik ─┬─ /api, /ws ─► api
 | `PROXY_HTTPS_PORT` | `443` | Host port published for HTTPS. |
 | `HSTS_MAX_AGE_SECONDS` | `31536000` | `max-age` of `Strict-Transport-Security` (no `includeSubDomains`/`preload`). |
 | `EDGE_SUBNET` | `172.30.250.0/24` | Fixed `edge_net` range. |
+| `EDGE_IP_RANGE` | `172.30.250.128/25` | Part of `EDGE_SUBNET` Docker assigns dynamically (gateway, frontend). Traefik's fixed address must be **outside** it (guard: `scripts/ci/check_edge_net.sh`). |
 | `EDGE_TRAEFIK_IP` | `172.30.250.2` | Traefik's address on `edge_net`; the only peer whose `X-Forwarded-*` the gateway trusts (`FORWARDED_ALLOW_IPS`, uvicorn `--proxy-headers`). |
 | `TLS_MODE` | required | `selfsigned` or `acme`. Compose fails without it. |
 | `ACME_EMAIL` | empty | Let's Encrypt account email; required when `TLS_MODE=acme` (the entrypoint refuses to start without it). |
