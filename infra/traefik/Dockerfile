@@ -18,4 +18,8 @@ RUN chmod -R a+rX /etc/traefik
 # acme.json is writable by the unprivileged proxy and survives container recreation.
 RUN mkdir /acme && chown 65532:65532 /acme && chmod 0700 /acme
 
+# Same unprivileged UID that docker-compose.yml sets with `user:`; declared here so the image is safe on its own
+# (Trivy DS-0002) and the Compose value stays a no-op.
+USER 65532:65532
+
 ENTRYPOINT ["/etc/traefik/entrypoint.sh"]
