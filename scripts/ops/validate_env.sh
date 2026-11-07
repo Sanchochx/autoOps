@@ -5,7 +5,7 @@
 #
 # Variables (read from the environment, falling back to ${APP_DIR}/.env, like docker compose):
 #   APP_DIR=<repo root>   directory with the .env file
-# Only enforced when ENVIRONMENT=production (default secrets, DOMAIN, PUBLIC_SCHEME, the TLS settings and IMAGE_TAG). Exit 0 = OK, 1 = insecure configuration.
+# Only enforced when ENVIRONMENT=production (default secrets, JWT_SECRET, DOMAIN, PUBLIC_SCHEME, the TLS settings and IMAGE_TAG). Exit 0 = OK, 1 = insecure configuration.
 # Wired as ExecStartPre= in autoops.service (see infra/systemd/README.md).
 set -eo pipefail
 
@@ -50,12 +50,25 @@ if [[ ${environment,,} != production ]]; then
 fi
 
 failed=0
-for name in SECRET_KEY DB_PASSWORD; do
-  if is_default "$(env_value "$name")"; then
-    log "ERROR: ${name} is empty or still has a default value; set a strong random one (e.g. openssl rand -hex 32)."
-    failed=1
-  fi
-done
+if is_default "$(env_value DB_PASSWORD)"; then
+  log "ERROR: DB_PASSWORD is empty or still has a default value; set a strong random one (e.g. openssl rand -hex 32)."
+  failed=1
+fi
+
+# JWT_SECRET signs the access tokens: required, not a placeholder, at least 32 characters (the gateway enforces the same).
+jwt_secret="$(env_value JWT_SECRET)"
+if is_default "$jwt_secret" || ((${#jwt_secret} < 32)); then
+  log "ERROR: JWT_SECRET is empty, a default or shorter than 32 characters; set one (e.g. openssl rand -hex 32)."
+  failed=1
+fi
+# SECRET_KEY is no longer read. It may stay in .env until the login is verified (it keeps a rollback to the previous release
+# possible), but if it is still there it must not be a placeholder. Unset or empty is fine. AUTH_INITIAL_* do not exist: the
+# first user is created interactively with scripts/ops/create_user.sh, so nothing about users is checked here.
+legacy_secret="$(env_value SECRET_KEY)"
+if [[ -n $legacy_secret ]] && is_default "$legacy_secret"; then
+  log "ERROR: SECRET_KEY is still a default value; replace it or delete it from .env."
+  failed=1
+fi
 
 # Reverse proxy (US-PROXY-001): the public origin is built from these two.
 domain="$(env_value DOMAIN)"

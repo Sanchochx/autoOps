@@ -6,12 +6,14 @@
 Reads DOMAIN and PROXY_HTTPS_PORT/PROXY_HTTP_PORT from the environment, falling back to .env.
 When DOMAIN is not resolvable on this machine, set E2E_CONNECT_ADDR=127.0.0.1 (the equivalent of
 curl --resolve). Needs the `websockets` package (installed with uvicorn[standard]).
+Signs in as a real user: E2E_USERNAME / E2E_PASSWORD from the environment, or a prompt when they are unset.
 Exit 0 = every step passed, 1 = a step failed.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 import socket
@@ -71,10 +73,36 @@ def check_redirect(domain: str, http_port: str) -> None:
         step(exc.code in (301, 308) and location.startswith("https://"), f"http:// -> {exc.code} {location}")
 
 
-def create_ticket(base: str, ctx: ssl.SSLContext) -> str:
+def check_unauthenticated(base: str, ctx: ssl.SSLContext) -> None:
+    try:
+        urllib.request.urlopen(f"{base}/api/v1/tickets", context=ctx, timeout=10)
+        step(False, "GET /api/v1/tickets without a token -> 401 (got a success status)")
+    except urllib.error.HTTPError as exc:
+        step(exc.code == 401, f"GET /api/v1/tickets without a token -> {exc.code}")
+
+
+def login(base: str, ctx: ssl.SSLContext) -> str:
+    """Sign in with E2E_USERNAME / E2E_PASSWORD (CI-style runs) or prompt for them; returns the access token."""
+    username = os.environ.get("E2E_USERNAME") or input("E2E username: ")
+    password = os.environ.get("E2E_PASSWORD") or getpass.getpass("E2E password: ")
+    req = urllib.request.Request(
+        f"{base}/api/v1/auth/login",
+        json.dumps({"username": username, "password": password}).encode(),
+        {"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+        step(resp.status == 200, "POST /api/v1/auth/login -> 200")
+        return str(json.load(resp)["access_token"])
+
+
+def create_ticket(base: str, ctx: ssl.SSLContext, token: str) -> str:
     body = json.dumps({"title": "e2e https", "description": "wss check", "severity": "low"}).encode()
     req = urllib.request.Request(
-        f"{base}/api/v1/tickets", body, {"Content-Type": "application/json"}, method="POST"
+        f"{base}/api/v1/tickets",
+        body,
+        {"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
     )
     with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
         step(resp.status == 201, "POST /api/v1/tickets over https -> 201")
@@ -93,9 +121,13 @@ async def run(ca: str) -> None:
 
     check_redirect(domain, http_port)
     base = f"https://{domain}:{https_port}"
+    await asyncio.to_thread(check_unauthenticated, base, ctx)
+    token = await asyncio.to_thread(login, base, ctx)
     async with websockets.connect(f"wss://{domain}:{https_port}/ws/stream", ssl=ctx) as ws:
-        step(await asyncio.wait_for(ws.recv(), 10) == "connected", "wss:// handshake and greeting")
-        ticket_id = await asyncio.to_thread(create_ticket, base, ctx)
+        # The token travels in the first message, never in the URL (the proxy logs URLs).
+        await ws.send(json.dumps({"type": "auth", "token": token}))
+        step(await asyncio.wait_for(ws.recv(), 10) == "connected", "wss:// handshake, auth and greeting")
+        ticket_id = await asyncio.to_thread(create_ticket, base, ctx, token)
         deadline = asyncio.get_running_loop().time() + EVENT_TIMEOUT_SECONDS
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
