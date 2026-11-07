@@ -15,11 +15,45 @@ on GitHub-hosted runners. It **validates and builds**: pull requests build the i
 | `compose` (4 cells) | `docker compose config -q` for `TLS_MODE` ∈ {`selfsigned`, `acme`} × {base, base + `docker-compose.dev-db.yml`} using `.env.example` | `cp .env.example .env && docker compose config -q` (for `acme` also set `ACME_EMAIL` and `PUBLIC_SCHEME=https`) |
 | `compose-guard` | Without `TLS_MODE` the Compose must be rejected, and the error must name `TLS_MODE` | `sed '/^TLS_MODE=/d' .env.example > .env && docker compose config -q` (must fail) |
 | `shellcheck` | Every tracked `*.sh`, severity `warning`, config in `.shellcheckrc` | `git ls-files -z '*.sh' \| xargs -0 shellcheck --severity=warning` |
-| `images` | The four images build with `docker buildx bake` from `docker-compose.yml` (no push), and the `NODE_VERSION` of `apps/frontend/Dockerfile` equals `.nvmrc`. It also builds the self-hosted runner image (from `infra/runner`: `bake` resolves the build context against the working directory) | `cp .env.example .env && TLS_MODE=selfsigned docker buildx bake api-gateway frontend mcp-logs traefik` |
+| `images` | The four images build with `docker buildx bake --load` from `docker-compose.yml` (no push), are scanned with Trivy (see [Security scans](#security-scans)), and the `NODE_VERSION` of `apps/frontend/Dockerfile` equals `.nvmrc`. It also builds the self-hosted runner image (from `infra/runner`: `bake` resolves the build context against the working directory) | `cp .env.example .env && TLS_MODE=selfsigned docker buildx bake api-gateway frontend mcp-logs traefik` |
 | `runner-compose` | `infra/runner/docker-compose.yml` keeps the runner locked down, checked on the **resolved** model: no `docker.sock`, ports, privileged mode, `network_mode`, `cap_add` or host bind mounts; `cap_drop: [ALL]`, `no-new-privileges`, read-only root, one dedicated network, limits | `RUNNER_REPO_URL=https://github.com/o/r scripts/ci/check_runner_compose.sh` |
 | `runner-workflows` | A workflow that targets the self-hosted runner (`autoops-prod`) is triggered only by `workflow_dispatch` or `push` to `main`, and its jobs declare `environment: production` | `scripts/ci/check_runner_workflows.sh` (needs PyYAML) |
+| `lint-python` | `ruff check .` over all Python (gateway, AI engine, MCP servers, tests, scripts) with the rules in `ruff.toml` | `pip install ruff==0.17.4 && ruff check .` |
+| `dependency-audit` | `pip-audit` on the three `requirements.txt` (gateway, AI engine, MCP logs) and `npm audit --omit=dev --audit-level=high` on the frontend; reports go to the job summary | see [Security scans](#security-scans) |
+| `trivy-config` | Trivy `config` (misconfigurations) on every Dockerfile; fails on HIGH/CRITICAL | `trivy config --severity HIGH,CRITICAL .` |
 | `publish` | Only on `push` to `main`, after `ci` is green: pushes the four images tagged with the commit SHA (the only job with `packages: write`) | — |
 | `ci` | Aggregate gate: passes only if every job above succeeded (also when one failed, was cancelled or skipped) | — |
+
+## Security scans
+
+| Scan | Scope | Blocks the CI on |
+|---|---|---|
+| ruff (`lint-python`) | all `*.py`; rules E, W, F, I, B, UP, S (bandit), C4, SIM, RUF in `ruff.toml` | any finding (it is code style and bug patterns, fix it) |
+| pip-audit (`dependency-audit`) | the three `requirements.txt`, resolved to the versions pip would install | **any** known advisory: pip-audit has no severity filter, so it cannot be limited to high/critical |
+| npm audit (`dependency-audit`) | `apps/frontend`, production dependencies only (`--omit=dev`) | severity `high` or `critical` (`--audit-level=high`) |
+| Trivy image (`images`) | the 4 built images (`autoops/<service>:dev`), OS and library vulnerabilities | `HIGH`/`CRITICAL` **with a fix available** (`ignore-unfixed: true`) |
+| Trivy config (`trivy-config`) | every Dockerfile (misconfigurations such as running as root) | `HIGH`/`CRITICAL` |
+
+- Trivy has no parser for `docker-compose.yml`; the Compose file is validated by the `compose*` jobs and
+  `scripts/ci/check_*.sh` instead. The `postgres` image is upstream and is not built here, so it is not scanned.
+- Lower severities are never fatal. Each scan appends its report to the **job summary** of the run (Actions tab).
+- `trivy-action` is pinned by SHA like every action. The Trivy version and its vulnerability database are
+  whatever that action fetches at run time, so a new CVE can turn a previously green commit red; that is intended.
+
+### Silencing a false positive (always with a justification)
+
+1. **Trivy** (CVE or check ID such as `DS-0002`): add the ID to `.trivyignore`, preceded by comment lines saying
+   why it does not apply, who accepted it, the date and a review date. Prefer fixing: bump the base image or the
+   package first.
+2. **pip-audit**: add `--ignore-vuln <ID>` to the call in `ci.yml` with a comment above it holding the same four facts.
+3. **npm audit**: there is no ignore file; fix with `npm audit fix` / an `overrides` entry in `package.json`, or
+   raise the issue in the PR if the advisory does not apply.
+4. **ruff**: a line-level `# noqa: <CODE> - <reason>` (the reason is mandatory), or a `per-file-ignores` entry in
+   `ruff.toml` with a comment. Never a blanket `# noqa`.
+
+Reproduce locally: `pip-audit -r apps/api_gateway/requirements.txt` (same for the other two files),
+`cd apps/frontend && npm audit --omit=dev --audit-level=high`, and
+`trivy image --severity HIGH,CRITICAL --ignore-unfixed autoops/<service>:dev` after `docker compose build`.
 
 ## Design rules
 
