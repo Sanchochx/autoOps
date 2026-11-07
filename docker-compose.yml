@@ -72,12 +72,17 @@ services:
     environment: &gateway_env
       HOST: 0.0.0.0
       PORT: ${PORT:?set PORT in .env}
-      # uvicorn trusts X-Forwarded-* from these peers. Safe: the gateway publishes no port and is
-      # reachable only from edge_net (the proxy), so any redirect it issues keeps https.
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+      # uvicorn (--proxy-headers) trusts X-Forwarded-* only from this peer: Traefik's fixed address on
+      # edge_net. request.client is then the real client, which the login rate limit keys on.
+      FORWARDED_ALLOW_IPS: ${EDGE_TRAEFIK_IP:-172.30.250.2}
       DEBUG: ${DEBUG:-False}
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      # No default: the gateway refuses to start without a secret of at least 32 characters. The old
+      # SECRET_KEY is no longer read; it may stay in .env until the rollout is verified (see README).
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (openssl rand -hex 32)}
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-60}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_WINDOW_SECONDS: ${LOGIN_WINDOW_SECONDS:-300}
       # Single origin behind the proxy: the dashboard is served from the public URL.
       CORS_ALLOWED_ORIGINS: ${PUBLIC_SCHEME:-http}://${DOMAIN:?set DOMAIN in .env}
       WS_BROADCAST_TIMEOUT_SECONDS: ${WS_BROADCAST_TIMEOUT_SECONDS:-2}
@@ -177,7 +182,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
-    networks: [edge_net]
+    networks:
+      edge_net:
+        ipv4_address: ${EDGE_TRAEFIK_IP:-172.30.250.2}
 
   # Alembic migrations: explicit step, not run by `up`.
   #   docker compose --profile tools run --rm migrate
@@ -201,6 +208,11 @@ services:
 networks:
   edge_net:
     driver: bridge
+    # Fixed subnet so Traefik has a known address (FORWARDED_ALLOW_IPS above). Change EDGE_SUBNET and
+    # EDGE_TRAEFIK_IP together if the range collides with another network on the host.
+    ipam:
+      config:
+        - subnet: ${EDGE_SUBNET:-172.30.250.0/24}
   backend_net:
     driver: bridge
     internal: true

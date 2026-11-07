@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api_gateway.database import get_db_session
+from apps.api_gateway.dependencies import get_current_user
 from apps.api_gateway.main import app
-from apps.api_gateway.models import Ticket
+from apps.api_gateway.models import Ticket, User
 from apps.api_gateway.routers import tickets as tickets_router
 from apps.api_gateway.schemas import TicketSeverity, TicketStatus
 
@@ -58,6 +59,8 @@ def session(
 
     mock.refresh.side_effect = fake_refresh
     app.dependency_overrides[get_db_session] = lambda: mock
+    # Authentication has its own tests (test_auth.py); here the caller is already signed in.
+    app.dependency_overrides[get_current_user] = lambda: User(username="tester")
     monkeypatch.setattr(tickets_router, "process_ticket_with_ai", ai_task)
     yield mock
     app.dependency_overrides.clear()
