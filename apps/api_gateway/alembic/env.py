@@ -1,11 +1,11 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
 from apps.api_gateway import models  # noqa: F401  (registers the models in Base.metadata)
 from apps.api_gateway.config import load_dotenv
 from apps.api_gateway.database import Base, get_database_url

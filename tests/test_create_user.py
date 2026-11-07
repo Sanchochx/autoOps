@@ -45,7 +45,9 @@ def test_upsert_replaces_the_password_and_reenables_the_user() -> None:
     assert verify_password("a long enough password", existing.password_hash)
 
 
-def test_main_refuses_to_run_without_a_terminal(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_refuses_to_run_without_a_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setattr("sys.stdin", MagicMock(isatty=lambda: False))
     assert create_user.main() == 2
     assert "interactive terminal" in capsys.readouterr().err

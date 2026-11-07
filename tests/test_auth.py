@@ -195,7 +195,7 @@ def test_gateway_is_started_with_proxy_headers_limited_to_the_proxy() -> None:
     assert "--proxy-headers" in dockerfile
     assert "--forwarded-allow-ips" in dockerfile and "$FORWARDED_ALLOW_IPS" in dockerfile
     compose = (ROOT / "docker-compose.yml").read_text()
-    line = next(l for l in compose.splitlines() if l.strip().startswith("FORWARDED_ALLOW_IPS:"))
+    line = next(row for row in compose.splitlines() if row.strip().startswith("FORWARDED_ALLOW_IPS:"))
     assert "*" not in line, "FORWARDED_ALLOW_IPS must not default to trusting every peer"
     assert "EDGE_TRAEFIK_IP" in line
 

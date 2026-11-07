@@ -1,10 +1,9 @@
 """Tests of the base agent graph with a fake model (US-LANG-004)."""
 
 import pytest
-from langchain_core.language_models.fake_chat_models import FakeListChatModel
-
 from ai_engine.graph import build_graph
 from ai_engine.nodes import parse_severity
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 
 def test_graph_runs_triage_then_investigator() -> None:
@@ -34,7 +33,7 @@ def test_compiled_graph_requires_model_env(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.delenv("AI_MODEL_NAME", raising=False)
     with pytest.raises(RuntimeError, match="AI_MODEL_NAME"):
-        graph_module.compiled_graph
+        _ = graph_module.compiled_graph  # attribute access builds the graph lazily
 
 
 _OPENAI_ENV = {"AI_MODEL_NAME": "gpt-4o-mini", "OPENAI_API_KEY": "sk-test"}
