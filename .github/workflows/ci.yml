@@ -206,6 +206,11 @@ jobs:
       # US-CICD-005 AC-2: every check of the post-deploy smoke test turns it red when its own condition breaks.
       - name: Post-deploy smoke test (smoke_test.sh)
         run: scripts/ci/test_smoke.sh
+      # Authentication rollout: the production env guard (JWT_SECRET) and the credential-free user creation wrapper.
+      - name: Production env guard (validate_env.sh)
+        run: scripts/ci/test_validate_env.sh
+      - name: User creation wrapper (create_user.sh)
+        run: scripts/ci/test_create_user.sh
 
   # Lints every tracked shell script with the shellcheck preinstalled on the runner (see .shellcheckrc).
   shellcheck:

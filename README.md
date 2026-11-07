@@ -63,7 +63,7 @@ cp .env.example .env
 ```
 
 ```bash
-# 2. Edit .env. At least: DB_PASSWORD, SECRET_KEY, OPENAI_API_KEY, AI_MODEL_NAME (e.g. gpt-4o-mini),
+# 2. Edit .env. At least: DB_PASSWORD, JWT_SECRET (openssl rand -hex 32), OPENAI_API_KEY, AI_MODEL_NAME (e.g. gpt-4o-mini),
 #    DOMAIN (default autoops.local), TLS_MODE=selfsigned, PUBLIC_SCHEME=https
 #    DATABASE_URL in .env.example is only for host-side tools; Compose builds its own from DB_*.
 ```
@@ -80,13 +80,19 @@ docker compose --profile tools run --rm migrate
 ```
 
 ```bash
+# 4b. Create the first dashboard user. Username and password are typed at a prompt (no echo);
+#     they are never read from .env, the environment or the command line.
+scripts/ops/create_user.sh
+```
+
+```bash
 # 5. Make the domain resolve and trust the local CA (on the machine that runs the browser)
 echo "127.0.0.1 autoops.local" | sudo tee -a /etc/hosts        # use the VM's IP if the browser is elsewhere
 sudo cp tls/ca/ca.crt /usr/local/share/ca-certificates/autoops-local-ca.crt && sudo update-ca-certificates
 # Firefox keeps its own store; see infra/traefik/README.md ("Trusting the local CA").
 ```
 
-Open `https://autoops.local`: create a ticket and watch the agents in the console. It goes **Open → Investigating →
+Open `https://autoops.local`, sign in with the user from step 4b, create a ticket and watch the agents in the console. It goes **Open → Investigating →
 Escalated**, with the Investigator's analysis in the table (persisted in the database, so it survives a reload).
 If the AI call fails, the ticket returns to **Open** and the console shows the error; check
 `docker compose logs api-gateway`.
@@ -99,8 +105,8 @@ pytest tests -v                                                      # backend t
 (cd apps/frontend && npm ci && npm test && npm run lint && npm run build)
 
 # Post-deploy checks through HTTPS (run from the repository root, one line each)
-SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
-E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
+SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/health SMOKE_PROTECTED_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
+E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt   # asks for a dashboard user's credentials
 ```
 
 ### Current limitations
@@ -109,7 +115,26 @@ E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
   query it yet: its analysis is based only on the text of the ticket. Paste real logs and stack traces into the description.
 - There is no Executor agent or approval flow (HITL) yet: a successfully investigated ticket is `escalated` to a human;
   `pending_approval` and `resolved` are not used by the agents.
-- The REST API has no authentication yet (`DELETE /api/v1/tickets` removes every ticket).
+- Authentication is a single role: every signed-in user can do everything (including `DELETE /api/v1/tickets`).
+  Tokens last `JWT_TTL_MINUTES` (default 60) and there is no refresh token: the dashboard asks to sign in again when
+  one expires. The token is kept in memory only, so reloading the page also asks for it.
+- The failed-login limiter is in memory (per client IP, `LOGIN_MAX_ATTEMPTS` per `LOGIN_WINDOW_SECONDS`): enough for the
+  single gateway container; several replicas would need a shared store.
+
+### Authentication
+
+- `POST /api/v1/auth/login` (`{"username", "password"}`) returns a short-lived Bearer token. Every other REST endpoint
+  requires `Authorization: Bearer <token>`, except the public health checks (`/api/v1/health`, and `/health` inside the
+  container). Passwords are stored as argon2id hashes in the `users` table.
+- WebSocket (`/ws/stream`): connect, then send `{"type": "auth", "token": "<token>"}` as the **first message** within
+  `WS_AUTH_TIMEOUT_SECONDS` (5 s). The token is not accepted in the URL because the proxy logs URLs. A missing, invalid
+  or expired token closes the socket with code `4401`; the socket is also closed when its token expires.
+- A wrong username and a wrong password get the same `401`. Failed logins are limited per client IP (`429` with
+  `Retry-After`); behind Traefik the real IP comes from `X-Forwarded-For`, trusted only from Traefik's fixed address
+  (`EDGE_TRAEFIK_IP`, uvicorn `--proxy-headers --forwarded-allow-ips`).
+- Secrets: `JWT_SECRET` (at least 32 characters, no default; the gateway refuses to start without it and
+  `validate_env.sh` enforces it in production). There are no user credentials in `.env`.
+- Users: `scripts/ops/create_user.sh` (interactive; also resets the password of an existing user).
 
 ### Run published images (no local build)
 

@@ -49,5 +49,9 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/health', timeout=4)"]
 
-# Shell + exec form: expands HOST/PORT from the environment and leaves uvicorn as PID 1.
-CMD ["sh", "-c", "exec uvicorn apps.api_gateway.main:app --host \"$HOST\" --port \"$PORT\""]
+# Shell + exec form: expands the variables from the environment and leaves uvicorn as PID 1.
+# --proxy-headers with --forwarded-allow-ips: X-Forwarded-For is honoured only from the proxy
+# (docker-compose.yml sets FORWARDED_ALLOW_IPS to Traefik's address), so request.client is the real
+# client and cannot be spoofed by any other peer. The login rate limit relies on it.
+ENV FORWARDED_ALLOW_IPS=127.0.0.1
+CMD ["sh", "-c", "exec uvicorn apps.api_gateway.main:app --host \"$HOST\" --port \"$PORT\" --proxy-headers --forwarded-allow-ips \"$FORWARDED_ALLOW_IPS\""]

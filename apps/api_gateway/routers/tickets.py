@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api_gateway.database import get_db_session
+from apps.api_gateway.dependencies import get_current_user
 from apps.api_gateway.models import Ticket
 from apps.api_gateway.schemas import (
     TicketCreate,
@@ -16,7 +17,11 @@ from apps.api_gateway.schemas import (
 )
 from apps.api_gateway.services.ai_service import process_ticket_with_ai
 
-router = APIRouter(prefix="/api/v1/tickets", tags=["tickets"])
+router = APIRouter(
+    prefix="/api/v1/tickets",
+    tags=["tickets"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 async def _get_ticket_or_404(session: AsyncSession, ticket_id: UUID) -> Ticket:

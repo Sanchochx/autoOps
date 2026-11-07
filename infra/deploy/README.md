@@ -22,7 +22,7 @@ scripts/ci/request_deploy.sh                          autoops-deploy.path   (Pat
 4. `docker compose pull` with `IMAGE_TAG` set only in the environment of that command.
 5. Start `postgres`, take a backup (`backup_postgres.sh`, kept in `BACKUP_DIR`) and run the migrations.
 6. **Point of no return:** rewrite `IMAGE_TAG` in `.env`, `docker compose up -d --wait`, then probe
-   `https://$DOMAIN$DEPLOY_HEALTH_PATH` (default `/api/v1/tickets`, 200 expected) up to `DEPLOY_HEALTH_RETRIES` times.
+   `https://$DOMAIN$DEPLOY_HEALTH_PATH` (default `/api/v1/health`, public, 200 expected) up to `DEPLOY_HEALTH_RETRIES` times.
 7. Success: `current` ← new tag, `previous` ← old tag. Failure: put the previous tag back and `up` + probe again.
 
 Only one deploy runs at a time: the unit is `Type=oneshot`, `deploy.sh` also holds an `flock`, and a request that arrives
@@ -257,3 +257,20 @@ tag=4538ba4187d4139bd7f477988b66f5d67c76d9d1`. This was after the PR #10 (noexec
 TLS, `DEPLOY_TLS_CLASSIC_KEX=1` on this host) fixes; the earlier real runs failed for those environment reasons, not for the
 logic. A `workflow_dispatch` of `main` run afterwards ([41316782562](https://github.com/Sanchochx/autoOps/actions/runs/41316782562))
 also ended green.
+
+## Rollout of the authentication release
+
+The release that adds JWT login needs one manual step on the host, in this order:
+
+1. Put `JWT_SECRET` (`openssl rand -hex 32`) in `/opt/autoops/.env`. Keep `SECRET_KEY` for now: it is no longer read, but the
+   previous release's Compose file still requires it if a rollback has to start it.
+2. Merge. The deploy applies migration `0003` (empty `users` table), starts the new gateway and runs the health gate against the
+   public `/api/v1/health`; the smoke test also requires `GET /api/v1/tickets` to answer `401` without a token. Until a user
+   exists nobody can sign in.
+3. `scripts/ops/create_user.sh` on the host (interactive: username and password at a prompt, nothing in `.env` or arguments).
+4. Verify: sign in at `https://$DOMAIN`, or `python scripts/ops/e2e_https.py --ca <ca.crt>`.
+5. Only then remove `SECRET_KEY` from `.env`.
+
+If this very first deploy fails and rolls back to the release without authentication, the rollback is verified with the new
+probe and smoke test, which that old release cannot satisfy (no `/api/v1/health`, tickets answer `200`): expect
+`rollback=failed` even though the previous containers are up. Check `docker compose ps` and sign off manually.

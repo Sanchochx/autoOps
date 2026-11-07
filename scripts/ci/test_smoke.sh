@@ -12,7 +12,7 @@ trap 'rm -rf "$WORK"' EXIT
 PASS=0; FAIL=0
 EXPECT=ghcr.io/o/autoops/api-gateway:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-# Fake curl: answers by URL (http:// = the redirect, "/" = the frontend, anything else = the API) and honours
+# Fake curl: answers by URL (http:// = the redirect, "/" = the frontend, the protected path = 401, anything else = the API) and honours
 # --dump-header / --write-out like the real one. FAKE_* flags break one thing at a time. Every call is logged.
 mkdir -p "${WORK}/bin"
 cat >"${WORK}/bin/curl" <<'FAKE'
@@ -26,6 +26,8 @@ if [[ $url == http://* ]]; then
 elif [[ $url =~ ^https://[^/]+/$ ]]; then
   code="${FAKE_FRONT_CODE:-200}"; headers="Content-Type: ${FAKE_CONTENT_TYPE:-text/html}"
   [[ -n ${FAKE_NO_HSTS:-} ]] || headers+=$'\r\n'"Strict-Transport-Security: max-age=31536000"
+elif [[ $url == *"${SMOKE_PROTECTED_PATH:-/nonexistent-protected}" ]]; then
+  code="${FAKE_PROTECTED_CODE:-401}"; headers="Content-Type: application/json"
 else
   code="${FAKE_API_CODE:-200}"; headers="Content-Type: application/json"
 fi
@@ -43,7 +45,7 @@ chmod +x "${WORK}/bin/curl" "${WORK}/bin/docker"
 run() { # extra env assignments as arguments; output in $OUT, exit code in $RC
   : >"${WORK}/log"
   OUT="$(env PATH="${WORK}/bin:${PATH}" WORK_LOG="${WORK}/log" SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=8443 SMOKE_HTTP_PORT=8080 \
-    SMOKE_HEALTH_PATH=/api/v1/tickets SMOKE_EXPECT_IMAGE="$EXPECT" SMOKE_APP_DIR="$WORK" "$@" "$SMOKE" 2>&1)"; RC=$?
+    SMOKE_HEALTH_PATH=/api/v1/health SMOKE_PROTECTED_PATH=/api/v1/tickets SMOKE_EXPECT_IMAGE="$EXPECT" SMOKE_APP_DIR="$WORK" "$@" "$SMOKE" 2>&1)"; RC=$?
 }
 check() { # description, command...
   local d=$1; shift
@@ -54,28 +56,32 @@ eq() { [[ $1 == "$2" ]]; }
 only_fails() { [[ $RC == 1 && $(grep -c '^FAIL' <<<"$OUT") == 1 ]] && grep -q "^FAIL.*$1" <<<"$OUT"; }
 
 run
-check "healthy: exit 0, six checks ok" bash -c "[[ $RC == 0 && \$(grep -c '^ok' <<<'$OUT') == 6 ]]"
+check "healthy: exit 0, seven checks ok" bash -c "[[ $RC == 0 && \$(grep -c '^ok' <<<'$OUT') == 7 ]]"
 check "healthy: requests use the configured domain and ports with --resolve (nothing hardcoded)" \
-  bash -c "grep -q -- '--resolve autoops.local:8443:127.0.0.1' '${WORK}/log' && grep -q 'https://autoops.local:8443/api/v1/tickets' '${WORK}/log' && grep -q -- '--resolve autoops.local:8080:127.0.0.1' '${WORK}/log'"
+  bash -c "grep -q -- '--resolve autoops.local:8443:127.0.0.1' '${WORK}/log' && grep -q 'https://autoops.local:8443/api/v1/health' '${WORK}/log' && grep -q 'https://autoops.local:8443/api/v1/tickets' '${WORK}/log' && grep -q -- '--resolve autoops.local:8080:127.0.0.1' '${WORK}/log'"
 check "healthy: the redirect is not followed and nothing but GET is sent" bash -c "! grep -q -- '--location\| -L \|--data\| -X \|--request' '${WORK}/log'"
 
 run FAKE_FRONT_CODE=502;            check "frontend 502 -> only the frontend check fails" only_fails "frontend answers 502"
 run FAKE_CONTENT_TYPE=text/plain;   check "frontend not HTML -> only that check fails" only_fails "content type"
 run FAKE_NO_HSTS=1;                 check "HSTS missing -> only that check fails" only_fails "Strict-Transport-Security"
 run FAKE_API_CODE=404;              check "API 404 -> only the API check fails" only_fails "API answers 404"
+run FAKE_PROTECTED_CODE=200;        check "protected path open without a token -> only that check fails" only_fails "answers 200 without a token"
+run FAKE_PROTECTED_CODE=500;        check "protected path erroring -> only that check fails" only_fails "answers 500 without a token"
 run FAKE_REDIRECT_CODE=200;         check "HTTP answered without redirect -> only that check fails" only_fails "HTTP answers 200"
 run FAKE_NO_LOCATION=1;             check "redirect without Location -> only that check fails" only_fails "HTTP answers 308"
 run FAKE_PS_IMAGE=ghcr.io/o/autoops/api-gateway:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
                                     check "gateway on another tag -> only the image check fails" only_fails "gateway runs"
 run FAKE_PS_IMAGE=;                 check "gateway not running -> only the image check fails" only_fails "gateway runs"
-run FAKE_CURL_FAILS=1;              check "curl cannot connect -> all five HTTP checks fail (000), exit 1" bash -c "[[ $RC == 1 && \$(grep -c '^FAIL' <<<'$OUT') == 5 ]]"
+run FAKE_CURL_FAILS=1;              check "curl cannot connect -> all six HTTP checks fail (000), exit 1" bash -c "[[ $RC == 1 && \$(grep -c '^FAIL' <<<'$OUT') == 6 ]]"
 
 run SMOKE_EXPECT_IMAGE=
-check "no expected image: the image check is skipped and docker is never called" bash -c "[[ $RC == 0 && \$(grep -c '^ok' <<<'$OUT') == 5 ]] && ! grep -q '^docker' '${WORK}/log'"
+check "no expected image: the image check is skipped and docker is never called" bash -c "[[ $RC == 0 && \$(grep -c '^ok' <<<'$OUT') == 6 ]] && ! grep -q '^docker' '${WORK}/log'"
 run SMOKE_CACERT=/tls/ca.crt
-check "a CA is passed to curl for HTTPS only" bash -c "grep -c -- '--cacert /tls/ca.crt' '${WORK}/log' | grep -qx 2"
+check "a CA is passed to curl for HTTPS only" bash -c "grep -c -- '--cacert /tls/ca.crt' '${WORK}/log' | grep -qx 3"
 run SMOKE_DOMAIN='bad host;id'
 check "invalid domain -> exit 2, no request" bash -c "[[ $RC == 2 ]] && ! grep -q '^curl' '${WORK}/log'"
+run SMOKE_PROTECTED_PATH=
+check "no protected path: the 401 check is skipped" bash -c "[[ $RC == 0 && \$(grep -c '^ok' <<<'$OUT') == 6 ]]"
 run SMOKE_HEALTH_PATH=api
 check "path without a leading slash -> exit 2" eq "$RC" 2
 run SMOKE_HTTPS_PORT=

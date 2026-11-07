@@ -16,6 +16,10 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket) -> None:
         """Accept the connection and register it."""
         await websocket.accept()
+        self.register(websocket)
+
+    def register(self, websocket: WebSocket) -> None:
+        """Register an already accepted connection (used once it has authenticated)."""
         self.active_connections.append(websocket)
         logger.info("WebSocket conectado (activas=%d)", len(self.active_connections))
 

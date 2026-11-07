@@ -7,14 +7,15 @@
 #
 # Order (a failure before "apply" changes neither .env nor the running stack):
 #   validate -> pull the images -> postgres up + backup -> migrate -> rewrite IMAGE_TAG -> up --wait -> HTTPS probe -> smoke test
-#   (scripts/ops/smoke_test.sh: frontend, API, HSTS, HTTP->HTTPS redirect, gateway image)
+#   (scripts/ops/smoke_test.sh: frontend, API, 401 without a token, HSTS, HTTP->HTTPS redirect, gateway image)
 # Any failure after IMAGE_TAG was rewritten restores the previous tag. The rollback restores images only, not the schema.
 #
 # Variables (process environment first, then ${APP_DIR}/.env, like docker compose):
 #   APP_DIR=<repo root>              directory with docker-compose.yml and .env
 #   DEPLOY_STATE_DIR=<APP_DIR>/.deploy          current / previous / history / lock (0700)
 #   DEPLOY_OUTBOX_DIR=<state dir>/outbox        where `status` is written (the runner reads it, never writes it)
-#   DEPLOY_HEALTH_PATH=/api/v1/tickets          path probed through the proxy (200 expected); /health is not routed
+#   DEPLOY_HEALTH_PATH=/api/v1/health           public path probed through the proxy (200 expected); /health is not routed
+#   DEPLOY_PROTECTED_PATH=/api/v1/tickets       path the smoke test must find answering 401 without a token
 #   DEPLOY_HEALTH_RETRIES=12  DEPLOY_HEALTH_INTERVAL=5  DEPLOY_LOCK_TIMEOUT=600  DEPLOY_WAIT_TIMEOUT=240
 #   IMAGE_REPOSITORY (required), DOMAIN, PROXY_HTTPS_PORT, TLS_MODE, TLS_DIR   as in .env.example
 #   DEPLOY_REPO=<owner>/<repo>       repository whose `main` is the source of truth (default: from RUNNER_REPO_URL)
@@ -250,7 +251,7 @@ step_smoke() { # <tag the stack must be running>
   local https_port http_port
   https_port="$(env_value PROXY_HTTPS_PORT)"; http_port="$(env_value PROXY_HTTP_PORT)"
   SMOKE_DOMAIN="$(env_value DOMAIN)" SMOKE_HTTPS_PORT="${https_port:-443}" SMOKE_HTTP_PORT="${http_port:-80}" \
-  SMOKE_HEALTH_PATH="$HEALTH_PATH" SMOKE_CACERT="$(tls_cacert)" SMOKE_APP_DIR="$APP_DIR" \
+  SMOKE_HEALTH_PATH="$HEALTH_PATH" SMOKE_PROTECTED_PATH="$PROTECTED_PATH" SMOKE_CACERT="$(tls_cacert)" SMOKE_APP_DIR="$APP_DIR" \
   SMOKE_EXPECT_IMAGE="${IMAGE_REPO}/api-gateway:${1}" \
     "${APP_DIR}/scripts/ops/smoke_test.sh" >&2
 }
@@ -292,7 +293,8 @@ main() {
   STATE_DIR="$(env_value DEPLOY_STATE_DIR)"; STATE_DIR="${STATE_DIR:-${APP_DIR}/.deploy}"
   OUTBOX_DIR="$(env_value DEPLOY_OUTBOX_DIR)"; OUTBOX_DIR="${OUTBOX_DIR:-${STATE_DIR}/outbox}"
   [[ $STATE_DIR == /* && $OUTBOX_DIR == /* ]] || die "DEPLOY_STATE_DIR and DEPLOY_OUTBOX_DIR must be absolute paths."
-  HEALTH_PATH="${DEPLOY_HEALTH_PATH:-/api/v1/tickets}"
+  HEALTH_PATH="${DEPLOY_HEALTH_PATH:-/api/v1/health}"
+  PROTECTED_PATH="${DEPLOY_PROTECTED_PATH:-/api/v1/tickets}"
   HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-12}"
   HEALTH_INTERVAL="${DEPLOY_HEALTH_INTERVAL:-5}"
   WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT:-240}"
@@ -322,6 +324,7 @@ main() {
     [[ $n =~ ^[0-9]+$ ]] || die "DEPLOY_* numeric settings must be non-negative integers."
   done
   [[ $HEALTH_PATH == /* && $HEALTH_PATH =~ ^[A-Za-z0-9_./-]+$ ]] || die "DEPLOY_HEALTH_PATH is invalid."
+  [[ $PROTECTED_PATH == /* && $PROTECTED_PATH =~ ^[A-Za-z0-9_./-]+$ ]] || die "DEPLOY_PROTECTED_PATH is invalid."
 
   if ((dry_run)); then
     if [[ -n $request_file ]]; then

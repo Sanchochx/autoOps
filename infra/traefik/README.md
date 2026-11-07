@@ -34,7 +34,8 @@ browser ──► :PROXY_HTTP_PORT ─► traefik ─┬─ /api, /ws ─► api
 | `PROXY_HTTP_PORT` | `80` | Host port published for HTTP. |
 | `PROXY_HTTPS_PORT` | `443` | Host port published for HTTPS. |
 | `HSTS_MAX_AGE_SECONDS` | `31536000` | `max-age` of `Strict-Transport-Security` (no `includeSubDomains`/`preload`). |
-| `FORWARDED_ALLOW_IPS` | `*` | Peers whose `X-Forwarded-*` the gateway trusts (set on `api-gateway`). |
+| `EDGE_SUBNET` | `172.30.250.0/24` | Fixed `edge_net` range. |
+| `EDGE_TRAEFIK_IP` | `172.30.250.2` | Traefik's address on `edge_net`; the only peer whose `X-Forwarded-*` the gateway trusts (`FORWARDED_ALLOW_IPS`, uvicorn `--proxy-headers`). |
 | `TLS_MODE` | required | `selfsigned` or `acme`. Compose fails without it. |
 | `ACME_EMAIL` | empty | Let's Encrypt account email; required when `TLS_MODE=acme` (the entrypoint refuses to start without it). |
 | `ACME_CA_SERVER` | empty | Empty = Let's Encrypt production; staging: `https://acme-staging-v02.api.letsencrypt.org/directory`. |
@@ -50,7 +51,7 @@ The frontend is built with same-origin paths (`VITE_API_BASE_URL=/`, `VITE_WS_BA
 docker compose up -d --build --wait            # builds the traefik image with the stack
 docker compose logs -f traefik                 # JSON application and access logs
 curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/               # frontend
-curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/api/v1/tickets
+curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/api/v1/health
 ```
 
 `65_tls.sh` writes to `${APP_DIR}/tls` (`/opt/autoops/tls`) unless `TLS_DIR` is set. For a checkout run

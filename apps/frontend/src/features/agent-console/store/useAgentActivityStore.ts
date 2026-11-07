@@ -5,10 +5,12 @@ import { toActivity } from '../services/parseAgentEvent'
 interface AgentActivityState {
   byTicket: Record<string, AgentActivity>
   applyEvent: (event: AgentEvent) => void
+  reset: () => void
 }
 
 export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   byTicket: {},
+  reset: (): void => set({ byTicket: {} }),
   applyEvent: (event): void =>
     set((state) => {
       const next = toActivity(event, state.byTicket[event.ticketId])

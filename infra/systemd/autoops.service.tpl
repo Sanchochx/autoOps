@@ -22,7 +22,7 @@ WorkingDirectory=@@APP_DIR@@
 Environment=DOCKER_CONFIG=@@APP_DIR@@/.docker
 Environment=DOCKER_CLI_HINTS=false
 
-# Refuses to start in production with default SECRET_KEY / DB_PASSWORD.
+# Refuses to start in production with default DB_PASSWORD / JWT_SECRET.
 ExecStartPre=@@APP_DIR@@/scripts/ops/validate_env.sh
 # --wait blocks until every service is running/healthy, so `systemctl start` only succeeds on a healthy stack.
 ExecStart=/usr/bin/docker compose up -d --wait --wait-timeout 240 --remove-orphans

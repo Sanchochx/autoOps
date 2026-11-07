@@ -147,7 +147,7 @@ database. Reported by the maintainer; the `docker compose images` output was sup
 | `docker compose ps` | every service `healthy` |
 | `org.opencontainers.image.revision` of each image | equals `6117b7aac20113f25ad4e8ba8dd8f586e2f787ce` |
 | `RepoDigests` of each pulled image vs. the table above | identical |
-| `scripts/ops/e2e_https.py` | exit 0: `POST /api/v1/tickets over https -> 201` and `ai_event over wss://` |
+| `scripts/ops/e2e_https.py` | exit 0: `GET /api/v1/tickets` without a token -> 401, login, `POST /api/v1/tickets over https -> 201` and `ai_event over wss://` (authenticated with the first-message token) |
 | `docker compose images` | repository `ghcr.io/sanchochx/autoops/<service>` and tag = the SHA for the four built services (output below) |
 
 ```

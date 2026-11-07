@@ -35,7 +35,7 @@ check is skipped) unless `RUNNER_REPO_URL` is set in `${APP_DIR}/.env`; see [`ru
 
 1. **Snapshot** a fresh Ubuntu Server 26.04 install (VirtualBox) so the cycle can be repeated from zero.
 2. **Deploy the repository** to `APP_DIR` (default `/opt/autoops`) and create `${APP_DIR}/.env` from `.env.example`
-   (set real `SECRET_KEY` and `DB_PASSWORD`, plus `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_SCHEDULE`).
+   (set real `JWT_SECRET` and `DB_PASSWORD`, plus `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_SCHEDULE`).
 3. **Fill the variables**:
    ```bash
    cp scripts/provision/provision.env.example provision.env && chmod 600 provision.env
