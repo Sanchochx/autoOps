@@ -51,7 +51,7 @@ The frontend is built with same-origin paths (`VITE_API_BASE_URL=/`, `VITE_WS_BA
 docker compose up -d --build --wait            # builds the traefik image with the stack
 docker compose logs -f traefik                 # JSON application and access logs
 curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/               # frontend
-curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/api/v1/tickets
+curl --cacert <TLS_DIR>/ca/ca.crt --resolve <DOMAIN>:<PROXY_HTTPS_PORT>:127.0.0.1 https://<DOMAIN>:<PROXY_HTTPS_PORT>/api/v1/health
 ```
 
 `65_tls.sh` writes to `${APP_DIR}/tls` (`/opt/autoops/tls`) unless `TLS_DIR` is set. For a checkout run

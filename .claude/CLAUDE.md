@@ -177,7 +177,7 @@ autoops/
 PORT=8000
 DEBUG=True
 ENVIRONMENT=development
-SECRET_KEY=autoops_jwt_secret_key
+JWT_SECRET=<openssl rand -hex 32>      # required, no default, >= 32 chars; users are created with scripts/ops/create_user.sh
 
 # PostgreSQL Database
 DB_HOST=localhost
