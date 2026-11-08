@@ -267,6 +267,9 @@ jobs:
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
           image-ref: autoops/api-gateway:dev
           scanners: vuln
           severity: HIGH,CRITICAL
@@ -281,6 +284,9 @@ jobs:
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
           image-ref: autoops/frontend:dev
           scanners: vuln
           severity: HIGH,CRITICAL
@@ -295,6 +301,9 @@ jobs:
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
           image-ref: autoops/mcp-logs:dev
           scanners: vuln
           severity: HIGH,CRITICAL
@@ -309,6 +318,9 @@ jobs:
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
           image-ref: autoops/traefik:dev
           scanners: vuln
           severity: HIGH,CRITICAL
@@ -402,6 +414,9 @@ jobs:
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
