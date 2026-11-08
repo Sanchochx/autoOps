@@ -25,6 +25,12 @@ RUN pip uninstall -y pip setuptools wheel
 # ── Stage 2: minimal runtime ─────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
+# Pulls in the Debian zlib1g security fix (CVE-2026-76844, CVE-2026-85091) until the python:3.11-slim base
+# ships it. Remove this step once the base already includes zlib1g 1:1.3.dfsg+really1.3.1-1+deb13u1 or later.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 10001 autoops \
     && useradd --system --uid 10001 --gid autoops --no-create-home \
         --shell /usr/sbin/nologin autoops
