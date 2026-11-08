@@ -264,6 +264,8 @@ jobs:
       # job; unpatched ones are ignored. Every image is scanned even if a previous one failed (`if: always()`).
       - name: Trivy api-gateway
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
         with:
           image-ref: autoops/api-gateway:dev
           scanners: vuln
@@ -276,6 +278,8 @@ jobs:
       - name: Trivy frontend
         if: always()
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
         with:
           image-ref: autoops/frontend:dev
           scanners: vuln
@@ -288,6 +292,8 @@ jobs:
       - name: Trivy mcp-logs
         if: always()
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
         with:
           image-ref: autoops/mcp-logs:dev
           scanners: vuln
@@ -300,6 +306,8 @@ jobs:
       - name: Trivy traefik
         if: always()
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
         with:
           image-ref: autoops/traefik:dev
           scanners: vuln
@@ -309,10 +317,14 @@ jobs:
           format: table
           output: trivy-traefik.txt
           trivyignores: .trivyignore
-      - name: Trivy summary
+      # trivy-action writes the table only to the file when `output` is set: print it to the log too, then to the summary.
+      - name: Trivy findings (log and summary)
         if: always()
         run: |
           for svc in api-gateway frontend mcp-logs traefik; do
+            echo "::group::Trivy image: ${svc}"
+            cat "trivy-${svc}.txt" 2>/dev/null || echo "no report"
+            echo "::endgroup::"
             { echo "### Trivy image: ${svc}"; echo '```'; cat "trivy-${svc}.txt" 2>/dev/null || echo "no report"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
       # The self-hosted runner image (US-CICD-003); its own scope keeps its layers apart in the Actions cache.
@@ -387,6 +399,8 @@ jobs:
           persist-credentials: false
       - name: Trivy config
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
         with:
           scan-type: config
           scan-ref: .
@@ -395,9 +409,10 @@ jobs:
           format: table
           output: trivy-config.txt
           trivyignores: .trivyignore
-      - name: Summary
+      - name: Trivy findings (log and summary)
         if: always()
         run: |
+          cat trivy-config.txt 2>/dev/null || echo "no report"
           { echo "### Trivy config (Dockerfiles)"; echo '```'; cat trivy-config.txt 2>/dev/null || echo "no report"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
