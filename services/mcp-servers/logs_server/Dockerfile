@@ -31,6 +31,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
+# The base image also ships pip and setuptools (which vendors jaraco.context and wheel: CVE-2026-23949,
+# CVE-2026-24049) in the system Python. Nothing installs packages at runtime, so remove them from this stage.
+RUN pip uninstall -y pip setuptools wheel
+
 RUN groupadd --system --gid 10001 autoops \
     && useradd --system --uid 10001 --gid autoops --no-create-home \
         --shell /usr/sbin/nologin autoops
