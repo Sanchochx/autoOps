@@ -18,6 +18,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
+# Packaging tools are not needed at runtime. setuptools vendors jaraco.context and wheel, which Trivy flags
+# (CVE-2026-23949, CVE-2026-24049): removing them from the venv keeps them out of the runtime image.
+RUN pip uninstall -y pip setuptools wheel
+
 # ── Stage 2: minimal runtime ─────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
