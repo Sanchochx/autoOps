@@ -18,8 +18,22 @@ COPY apps/api_gateway/requirements.txt /tmp/gateway-requirements.txt
 COPY services/ai-engine/requirements.txt /tmp/ai-engine-requirements.txt
 RUN pip install -r /tmp/gateway-requirements.txt -r /tmp/ai-engine-requirements.txt
 
+# Packaging tools are not needed at runtime. setuptools vendors jaraco.context and wheel, which Trivy flags
+# (CVE-2026-23949, CVE-2026-24049): removing them from the venv keeps them out of the runtime image.
+RUN pip uninstall -y pip setuptools wheel
+
 # ── Stage 2: minimal runtime ─────────────────────────────────────
 FROM python:3.11-slim AS runtime
+
+# Pulls in the Debian zlib1g security fix (CVE-2026-76844, CVE-2026-85091) until the python:3.11-slim base
+# ships it. Remove this step once the base already includes zlib1g 1:1.3.dfsg+really1.3.1-1+deb13u1 or later.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+# The base image also ships pip and setuptools (which vendors jaraco.context and wheel: CVE-2026-23949,
+# CVE-2026-24049) in the system Python. Nothing installs packages at runtime, so remove them from this stage.
+RUN pip uninstall -y pip setuptools wheel
 
 # Unprivileged user with no login shell.
 RUN groupadd --system --gid 10001 autoops \

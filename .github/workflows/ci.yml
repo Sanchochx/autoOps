@@ -257,9 +257,88 @@ jobs:
         env:
           TLS_MODE: selfsigned
         run: |
-          docker buildx bake -f docker-compose.yml \
+          docker buildx bake -f docker-compose.yml --load \
             --set '*.cache-from=type=gha' --set '*.cache-to=type=gha,mode=max' \
             api-gateway frontend mcp-logs traefik
+      # Vulnerability scan of the images just built (autoops/<service>:dev). HIGH/CRITICAL with an available fix fail the
+      # job; unpatched ones are ignored. Every image is scanned even if a previous one failed (`if: always()`).
+      - name: Trivy api-gateway
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
+          image-ref: autoops/api-gateway:dev
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          output: trivy-api-gateway.txt
+          trivyignores: .trivyignore
+      - name: Trivy frontend
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
+          image-ref: autoops/frontend:dev
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          output: trivy-frontend.txt
+          trivyignores: .trivyignore
+      - name: Trivy mcp-logs
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
+          image-ref: autoops/mcp-logs:dev
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          output: trivy-mcp-logs.txt
+          trivyignores: .trivyignore
+      - name: Trivy traefik
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
+          image-ref: autoops/traefik:dev
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          output: trivy-traefik.txt
+          trivyignores: .trivyignore
+      # trivy-action writes the table only to the file when `output` is set: print it to the log too, then to the summary.
+      - name: Trivy findings (log and summary)
+        if: always()
+        run: |
+          for svc in api-gateway frontend mcp-logs traefik; do
+            echo "::group::Trivy image: ${svc}"
+            cat "trivy-${svc}.txt" 2>/dev/null || echo "no report"
+            echo "::endgroup::"
+            { echo "### Trivy image: ${svc}"; echo '```'; cat "trivy-${svc}.txt" 2>/dev/null || echo "no report"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
       # The self-hosted runner image (US-CICD-003); its own scope keeps its layers apart in the Actions cache.
       - name: Build the runner image
         env:
@@ -273,10 +352,88 @@ jobs:
           docker buildx bake -f docker-compose.yml \
             --set '*.cache-from=type=gha,scope=runner' --set '*.cache-to=type=gha,mode=max,scope=runner' runner
 
+  # Static analysis of all Python (backend, AI engine, MCP servers, tests, scripts). Rules live in ruff.toml.
+  lint-python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - run: pip install ruff==0.17.4
+      - name: Ruff
+        run: ruff check . --output-format github
+
+  # Known-vulnerability audit of the dependencies that ship. Gate: pip-audit has no severity filter, so any advisory
+  # that affects a resolved version fails the job (silence a justified one with --ignore-vuln, see infra/ci/README.md);
+  # npm audit fails from severity `high` upwards. Both write a readable report to the job summary first.
+  dependency-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/frontend/.nvmrc
+      - run: pip install pip-audit==2.10.1
+      # The requirements are version ranges: pip-audit resolves each file and audits what would be installed.
+      - name: pip-audit
+        run: |
+          set -o pipefail   # a failing pip-audit must not be masked by `tee`
+          status=0
+          for req in apps/api_gateway/requirements.txt services/ai-engine/requirements.txt services/mcp-servers/logs_server/requirements.txt; do
+            echo "### pip-audit: \`${req}\`" >> "$GITHUB_STEP_SUMMARY"
+            pip-audit -r "$req" --progress-spinner off -f markdown | tee -a "$GITHUB_STEP_SUMMARY" || status=1
+          done
+          exit "$status"
+      - name: npm audit (production dependencies, fails from high)
+        working-directory: apps/frontend
+        run: |
+          { echo "### npm audit: \`apps/frontend\` (omit dev)"; echo '```'; npm audit --omit=dev || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          npm audit --omit=dev --audit-level=high
+
+  # Misconfiguration scan (Trivy `config`) of every Dockerfile. Trivy does not parse docker-compose files; the Compose
+  # is covered by the `compose` jobs. HIGH and CRITICAL fail the job.
+  trivy-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trivy config
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          # Trivy binary: the version in use, verified by this CI (it is also the action's default). Bumped on purpose
+          # in a reviewed change, never automatically.
+          version: v0.70.0
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          format: table
+          output: trivy-config.txt
+          trivyignores: .trivyignore
+      - name: Trivy findings (log and summary)
+        if: always()
+        run: |
+          cat trivy-config.txt 2>/dev/null || echo "no report"
+          { echo "### Trivy config (Dockerfiles)"; echo '```'; cat trivy-config.txt 2>/dev/null || echo "no report"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
   # The only status branch protection requires: it passes when every job in `needs` succeeded.
   # `if: always()` makes it run (and fail) when a needed job failed, was cancelled or skipped.
   ci:
-    needs: [backend, frontend, compose, compose-guard, shellcheck, images, runner-compose, runner-workflows, deploy-guards]
+    needs: [backend, frontend, compose, compose-guard, shellcheck, images, runner-compose, runner-workflows, deploy-guards, lint-python, dependency-audit, trivy-config]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

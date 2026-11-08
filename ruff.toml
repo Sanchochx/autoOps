@@ -1,0 +1,29 @@
+# Ruff configuration (CI job `lint-python`). Run locally: `ruff check . && ruff format --check .` is NOT enforced;
+# only `ruff check` is (formatting is left alone so existing code is not churned).
+target-version = "py311"
+line-length = 120
+extend-exclude = ["venv", "node_modules", "tls"]
+
+[lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # flake8-bugbear
+  "UP",       # pyupgrade
+  "S",        # flake8-bandit (security)
+  "C4",       # comprehensions
+  "SIM",      # simplifications
+  "RUF",      # ruff-specific
+]
+ignore = [
+  "B008",     # FastAPI uses Depends()/Query() in argument defaults
+  "UP042",    # StrEnum changes str()/format() of existing enums: not a behavior-neutral rewrite
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]   # assert and throwaway credentials are normal in tests
+# Operator-run script: the base URL comes from the operator's own environment (https), never from untrusted input.
+"scripts/ops/e2e_https.py" = ["S310"]
+# Alembic revision files are generated; they are kept as the tool wrote them.
+"apps/api_gateway/alembic/versions/*" = ["E501", "W291"]

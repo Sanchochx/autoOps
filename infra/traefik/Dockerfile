@@ -3,7 +3,7 @@
 # independent of host file permissions, and the image can be published to GHCR (Phase 5, CI/CD).
 # Build context: infra/traefik. Nothing configurable lives here: DOMAIN and GATEWAY_PORT are
 # read from the environment by dynamic/routes.yml at runtime.
-ARG TRAEFIK_VERSION=v3.7.16
+ARG TRAEFIK_VERSION=v3.7.17
 FROM traefik:${TRAEFIK_VERSION}
 
 COPY traefik.yml /etc/traefik/traefik.yml
@@ -17,5 +17,9 @@ RUN chmod -R a+rX /etc/traefik
 # ACME storage (TLS_MODE=acme): the named volume mounted here inherits this owner on first use, so
 # acme.json is writable by the unprivileged proxy and survives container recreation.
 RUN mkdir /acme && chown 65532:65532 /acme && chmod 0700 /acme
+
+# Same unprivileged UID that docker-compose.yml sets with `user:`; declared here so the image is safe on its own
+# (Trivy DS-0002) and the Compose value stays a no-op.
+USER 65532:65532
 
 ENTRYPOINT ["/etc/traefik/entrypoint.sh"]

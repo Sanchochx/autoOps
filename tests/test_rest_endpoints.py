@@ -1,7 +1,7 @@
 """Tests of the API Gateway REST endpoints (mocked DB session)."""
 
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
@@ -16,10 +16,9 @@ from apps.api_gateway.models import Ticket, User
 from apps.api_gateway.routers import tickets as tickets_router
 from apps.api_gateway.schemas import TicketSeverity, TicketStatus
 
-
 VALID_PAYLOAD = {"title": "Disco lleno", "description": "/var al 100%", "severity": "high"}
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def make_ticket(**overrides: object) -> Ticket:

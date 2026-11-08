@@ -1,0 +1,8 @@
+# Trivy suppressions (CI jobs `images` and `trivy-config`). One ID per line (CVE-YYYY-NNNN or a check ID such as DS-0002).
+# Every entry MUST be preceded by comments that state: why it is a false positive or accepted, who accepted it,
+# the date, and when to review it. An entry without that justification must not pass review. See infra/ci/README.md.
+#
+# Example (kept as a comment on purpose):
+#   # CVE-2099-0001: the vulnerable function is never called (we only use the parser). Accepted by @owner 2026-11-07.
+#   # Review by 2027-02-07 or when a fixed version exists.
+#   CVE-2099-0001
