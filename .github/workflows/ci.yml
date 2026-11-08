@@ -263,7 +263,7 @@ jobs:
       # Vulnerability scan of the images just built (autoops/<service>:dev). HIGH/CRITICAL with an available fix fail the
       # job; unpatched ones are ignored. Every image is scanned even if a previous one failed (`if: always()`).
       - name: Trivy api-gateway
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
@@ -277,7 +277,7 @@ jobs:
           trivyignores: .trivyignore
       - name: Trivy frontend
         if: always()
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
@@ -291,7 +291,7 @@ jobs:
           trivyignores: .trivyignore
       - name: Trivy mcp-logs
         if: always()
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
@@ -305,7 +305,7 @@ jobs:
           trivyignores: .trivyignore
       - name: Trivy traefik
         if: always()
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
@@ -398,7 +398,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Trivy config
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
         with:
