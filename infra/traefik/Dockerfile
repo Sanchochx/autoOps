@@ -3,7 +3,7 @@
 # independent of host file permissions, and the image can be published to GHCR (Phase 5, CI/CD).
 # Build context: infra/traefik. Nothing configurable lives here: DOMAIN and GATEWAY_PORT are
 # read from the environment by dynamic/routes.yml at runtime.
-ARG TRAEFIK_VERSION=v3.7.16
+ARG TRAEFIK_VERSION=v3.7.17
 FROM traefik:${TRAEFIK_VERSION}
 
 COPY traefik.yml /etc/traefik/traefik.yml
