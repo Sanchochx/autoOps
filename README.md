@@ -50,6 +50,67 @@ open ──► investigating ──► escalated
 <!-- SCREENSHOT: agent console streaming the Triage and Investigator reasoning. Add as docs/images/agent-console.png -->
 <!-- SCREENSHOT: the analysis dialog of an escalated ticket. Add as docs/images/analysis.png -->
 
+## Architecture
+
+Everything runs from one Compose file ([`docker-compose.yml`](docker-compose.yml)). **Traefik is the only service that
+publishes host ports**; the dashboard and the API share one origin behind it.
+
+```mermaid
+flowchart LR
+    user(["Browser"])
+    llm(["LLM API<br/>OpenAI-compatible"])
+    gh(["GitHub / GHCR"])
+
+    subgraph edge_net["edge_net: bridge, NOT internal (Internet egress)"]
+        traefik["Traefik<br/>HTTPS + HSTS<br/>the only published ports"]
+        frontend["frontend<br/>Nginx serving the React build"]
+    end
+
+    gateway["api-gateway<br/>FastAPI REST + WebSocket<br/>LangGraph agents in-process<br/>member of edge_net, backend_net and mcp_net"]
+
+    subgraph backend_net["backend_net: internal"]
+        postgres[("PostgreSQL")]
+    end
+
+    subgraph mcp_net["mcp_net: internal"]
+        mcp["mcp-logs<br/>MCP server, simulated data"]
+    end
+
+    subgraph runner_net["runner_net: separate Compose project, Internet egress only"]
+        runner["self-hosted runner<br/>no Docker socket"]
+    end
+
+    spool[["deploy spool on the host<br/>inbox rw / outbox ro"]]
+
+    user -->|"HTTP 80 redirects to HTTPS 443"| traefik
+    traefik -->|"/"| frontend
+    traefik -->|"/api and /ws"| gateway
+    gateway --> postgres
+    gateway -.->|"reachable, not called yet"| mcp
+    gateway -->|"reasoning requests"| llm
+    runner -->|"outbound HTTPS"| gh
+    runner -->|"writes the request"| spool
+    spool -.->|"status, read-only"| runner
+```
+
+| Network | Internal | Members | Why |
+|---------|----------|---------|-----|
+| `edge_net` | no | `traefik`, `frontend`, `api-gateway` | The only network with Internet egress for the stack: the gateway needs the LLM API, and Traefik needs ACME when `TLS_MODE=acme`. Traefik has a fixed address here, and it is the only peer whose `X-Forwarded-*` headers the gateway trusts. |
+| `backend_net` | **yes** | `postgres`, `api-gateway`, and the `migrate` job | PostgreSQL has no route to the Internet or to the host. |
+| `mcp_net` | **yes** | `mcp-logs`, `api-gateway` | The MCP server is reachable only from the gateway. |
+| `runner_net` | no | the self-hosted runner | Defined in [`infra/runner/docker-compose.yml`](infra/runner/docker-compose.yml), a Compose project of its own, so a runner failure never touches the stack. It shares no network with the application. |
+
+- **Routing:** `Host(DOMAIN)` is the only host Traefik answers. `/api` and `/ws` go to the gateway (REST under
+  `/api/v1`, WebSocket at `/ws/stream`); everything else goes to the frontend
+  ([`routes.yml`](infra/traefik/dynamic/routes.yml)). Details in [`infra/traefik/README.md`](infra/traefik/README.md).
+- **The runner never touches Docker.** It leaves a deploy request in a spool directory and the host, not GitHub, validates
+  and applies it. See [`infra/runner/README.md`](infra/runner/README.md) and [`infra/deploy/README.md`](infra/deploy/README.md).
+- **MCP isolation is a design rule** ([`.claude/CLAUDE.md`](.claude/CLAUDE.md)): the AI engine must not connect to PostgreSQL
+  or run OS commands, only reach infrastructure through MCP servers. Today the gateway persists tickets itself and the agents
+  only receive the ticket text, so the rule holds trivially; the MCP path is where it will matter once the Investigator uses it.
+- `docker-compose.dev-db.yml` is an optional development override that publishes PostgreSQL on the host loopback only; it is
+  not used in production.
+
 ## Tech stack
 
 | Layer | Technology |
