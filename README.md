@@ -389,19 +389,7 @@ SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/health
 E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
 ```
 
-### Current limitations
-
-- The MCP logs server (`services/mcp-servers/logs_server`) serves **simulated** data, and the Investigator does **not**
-  query it yet: its analysis is based only on the text of the ticket. Paste real logs and stack traces into the description.
-- There is no Executor agent or approval flow (HITL) yet: a successfully investigated ticket is `escalated` to a human;
-  `pending_approval` and `resolved` are not used by the agents.
-- Authentication is a single role: every signed-in user can do everything (including `DELETE /api/v1/tickets`).
-  Tokens last `JWT_TTL_MINUTES` (default 60) and there is no refresh token: the dashboard asks to sign in again when
-  one expires. The token is kept in memory only, so reloading the page also asks for it.
-- The failed-login limiter is in memory (per client IP, `LOGIN_MAX_ATTEMPTS` per `LOGIN_WINDOW_SECONDS`): enough for the
-  single gateway container; several replicas would need a shared store.
-
-### Authentication
+## Authentication
 
 - `POST /api/v1/auth/login` (`{"username", "password"}`) returns a short-lived Bearer token. Every other REST endpoint
   requires `Authorization: Bearer <token>`, except the public health checks (`/api/v1/health`, and `/health` inside the
@@ -416,7 +404,33 @@ E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
   `validate_env.sh` enforces it in production). There are no user credentials in `.env`.
 - Users: `scripts/ops/create_user.sh` (interactive; also resets the password of an existing user).
 
-### Run published images (no local build)
+## Deploying
+
+AutoOps is built and exercised on an Ubuntu Server 26.04 VM (VirtualBox); the host docs below record the drills that were run.
+The pieces are independent and each one has its own README, which is the source of truth; this is the map.
+
+1. **Provision the host** (users, SSH, fail2ban, UFW, Docker, systemd units, optional runner). Idempotent, and
+   `verify.sh` fails if any control has drifted. The full cycle, variables and the SSH lock-out protection are in
+   [`infra/README.md`](infra/README.md).
+   ```bash
+   sudo ./scripts/provision/bootstrap.sh --env-file provision.env
+   sudo ./scripts/provision/verify.sh --env-file provision.env
+   ```
+2. **Choose the certificate source.** `TLS_MODE=selfsigned` for a local CA, `TLS_MODE=acme` for Let's Encrypt (needs a
+   public `DOMAIN` and ports 80 and 443 reachable). See [`infra/traefik/README.md`](infra/traefik/README.md).
+3. **Optional: register the self-hosted runner** by setting `RUNNER_REPO_URL` in `.env`. See
+   [`infra/runner/README.md`](infra/runner/README.md).
+4. **Continuous delivery.** With the runner in place, a push to `main` with a green CI deploys itself: wait for CI and the
+   published images, hand a request to the host, apply with a backup, migration, health check and smoke test, roll back on
+   failure. The flow is the [pipeline above](#cicd-pipeline); the host-side contract, status codes, what to do on each red
+   run, manual deploys and rollbacks are in [`infra/deploy/README.md`](infra/deploy/README.md#continuous-delivery-us-cicd-005).
+   The GitHub settings that are not in the repository (the `production` environment, branch protection on `ci`) are listed in
+   [`infra/ci/README.md`](infra/ci/README.md#branch-protection-manual-github-settings-are-not-in-the-repository).
+5. **Backups and restore:** [`infra/backup/README.md`](infra/backup/README.md).
+
+The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
+
+### Running a published commit by hand
 
 CI publishes the images to GHCR from `main`, tagged with the commit SHA. To run a given commit:
 
@@ -438,31 +452,6 @@ alembic -c apps/api_gateway/alembic.ini revision --autogenerate -m "description"
 ```
 
 Requires `DATABASE_URL` (`postgresql+asyncpg://...`) in `.env`.
-
-### Host provisioning (Ubuntu Server 26.04)
-
-```bash
-sudo ./scripts/provision/bootstrap.sh --env-file provision.env   # idempotent
-sudo ./scripts/provision/verify.sh --env-file provision.env      # OK/FAIL table, exit 1 on any failure
-```
-
-See [`infra/README.md`](infra/README.md) for the full cycle (variables, SSH confirmation, reboot test).
-
-### Self-hosted runner (optional, for continuous deployment)
-
-With `RUNNER_REPO_URL` set in `.env`, `bootstrap.sh` also installs a containerized GitHub Actions runner
-(`autoops-runner.service`, label `autoops-prod`): outbound connections only, no Docker socket, no access to the stack's
-networks, and usable only by `workflow_dispatch` / push-to-`main` workflows. See
-[`infra/runner/README.md`](infra/runner/README.md). The runner never touches Docker: it leaves a deploy request that the host
-validates and applies itself, with automatic rollback, see [`infra/deploy/README.md`](infra/deploy/README.md).
-
-### Continuous delivery
-
-A push to `main` with a green CI is deployed automatically (`.github/workflows/deploy.yml`): the workflow waits for the CI and
-the published images, asks the host through the runner, and the host applies the release, runs a smoke test over HTTPS and rolls
-back if it fails. See [`infra/deploy/README.md`](infra/deploy/README.md#continuous-delivery-us-cicd-005).
-
-The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
 
 ## Key principles
 
