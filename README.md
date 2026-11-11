@@ -1,12 +1,54 @@
 # AutoOps
 
-Self-hosted multi-agent SRE platform. It is an autonomous technical support system (Tier-1) that receives and classifies incident tickets, investigates the root cause by querying logs, metrics and databases through isolated Model Context Protocol (MCP) servers, and proposes automatic or human-supervised remediation plans (Human-in-the-Loop, HITL).
+Self-hosted, multi-agent SRE platform. AutoOps is a Tier-1 technical-support system: an operator opens an incident
+ticket in a web dashboard, a [LangGraph](https://langchain-ai.github.io/langgraph/) pipeline of two AI agents
+classifies its severity and proposes a root-cause analysis, and the reasoning is streamed to the browser while it
+happens. The platform around it is the other half of the project: hardened containers on isolated networks, HTTPS behind
+a single reverse proxy, a CI pipeline with security scans, and pull-based continuous delivery with automatic rollback
+onto a hardened Ubuntu host.
 
-Three agents orchestrated with LangGraph:
+> **Scope, honestly.** This README describes what exists in the repository today. The agents reason only over the text of
+> the ticket, the logs MCP server serves simulated data and nothing calls it yet, and the Executor / human-approval
+> agent is not built. See [Known limitations](#known-limitations) and the [Roadmap](#roadmap).
 
-1. **Triage:** classifies severity and routes the ticket.
-2. **Investigator:** inspects logs and metrics through MCP tools.
-3. **Executor:** generates mitigation plans and manages HITL approvals.
+<!-- SCREENSHOT: dashboard overview (ticket table and agent console), full width. Add as docs/images/dashboard.png -->
+
+## How a ticket flows
+
+A ticket is created with a title and a description. Everything after that happens in the background, and the dashboard
+follows it over REST (ticket table) and a WebSocket (agent console).
+
+| Status | When | What happened |
+|--------|------|---------------|
+| **Open** | `POST /api/v1/tickets` returns `201` | The ticket is stored with a placeholder severity (`medium`; a `severity` sent by the client is ignored). The request does not wait for the agents; a background task starts. |
+| **Investigating** | The task picks the ticket up | The graph runs: the **Triage agent** answers with one of `low`, `medium`, `high` or `critical` (an unrecognizable answer falls back to `medium`), then the **Investigator agent** receives the description plus that severity and writes root-cause hypotheses and what to check next. |
+| **Escalated** | The graph finishes | The final severity and the Investigator's analysis are persisted (they survive a page reload) and the ticket is handed to a human. |
+
+If the model call fails, the ticket returns to **Open**, its analysis is cleared and the console shows an error event.
+
+While the graph runs, each step is broadcast as a JSON event (`ai_event`, with the node name and a message) to every
+authenticated client connected to `/ws/stream`. The dashboard's agent console renders them live, and the ticket table
+refreshes by polling (`VITE_TICKETS_POLL_INTERVAL_MS`, default 5 s).
+
+```text
+open ──► investigating ──► escalated
+  ▲            │
+  └── on failure (analysis cleared)
+```
+
+- The LangGraph graph is linear: `START → triage_node → investigator_node → END`
+  ([`graph.py`](services/ai-engine/ai_engine/graph.py)). It runs **in-process inside the `api-gateway` container**; there
+  is no separate AI-engine service.
+- The Investigator has an injection point for technical context (logs, metrics) coming from MCP servers, but the gateway
+  does not pass one today, so it works from the ticket text alone.
+- The **logs MCP server** ([`services/mcp-servers/logs_server`](services/mcp-servers/README.md)) is deployed and reachable
+  from the gateway over a private network. It exposes two read-only tools, `get_system_logs` and `get_db_metrics`, that
+  return **simulated** data. Nothing calls them yet.
+- `pending_approval` and `resolved` exist in the ticket model but no agent sets them.
+
+<!-- SCREENSHOT: ticket creation form and a ticket moving Open -> Investigating -> Escalated. Add as docs/images/ticket-flow.png -->
+<!-- SCREENSHOT: agent console streaming the Triage and Investigator reasoning. Add as docs/images/agent-console.png -->
+<!-- SCREENSHOT: the analysis dialog of an escalated ticket. Add as docs/images/analysis.png -->
 
 ## Tech stack
 
