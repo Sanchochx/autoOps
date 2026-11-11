@@ -282,21 +282,24 @@ runs without any secret of its own.
 ```
 autoops/
 ├── apps/
-│   ├── frontend/        # Admin dashboard (React + Vite + TypeScript + TailwindCSS)
-│   └── api_gateway/     # FastAPI: REST, WebSockets and authentication
+│   ├── frontend/        # Dashboard (React + Vite + TypeScript + TailwindCSS), served by Nginx
+│   └── api_gateway/     # FastAPI: REST, WebSocket, authentication, Alembic migrations
 ├── services/
-│   ├── ai-engine/       # LangGraph agents (Triage, Investigator, Executor)
-│   └── mcp-servers/     # MCP servers (DB, logs and metrics isolation)
+│   ├── ai-engine/       # LangGraph agents (Triage, Investigator); imported in-process by the gateway
+│   └── mcp-servers/     # logs_server: MCP server with simulated logs and metrics (its own image)
+├── tests/               # pytest suite (gateway, auth, WebSocket, agent graph)
 ├── scripts/
 │   ├── provision/       # Idempotent host bootstrap (bootstrap.sh), verify.sh and per-control checks
-│   ├── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
-│   └── ci/              # Guards run by CI (self-hosted runner lock-down and allowed workflows)
-├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups, CI, self-hosted runner)
+│   ├── ops/             # Backup and restore, env validation, host-side deploy, smoke test, user creation
+│   └── ci/              # Deploy request script, CI guards and their Bash tests
+├── infra/               # Host configuration templates and docs: SSH, UFW, fail2ban, Docker, systemd, backups,
+│                        # Traefik, CI, self-hosted runner, deploy
+├── .github/workflows/   # ci.yml, deploy.yml, runner-smoke.yml
 ├── .claude/
 │   ├── CLAUDE.md        # Project architecture and standards
 │   └── context/         # SDD documentation (plan, user stories, summaries)
+├── docker-compose.yml   # The application stack (Traefik, frontend, api-gateway, postgres, mcp-logs, migrate)
 ├── .env.example         # Centralized environment variable template
-├── .gitignore
 └── README.md
 ```
 
@@ -356,16 +359,34 @@ Escalated**, with the Investigator's analysis in the table (persisted in the dat
 If the AI call fails, the ticket returns to **Open** and the console shows the error; check
 `docker compose logs api-gateway`.
 
-### Verify it works
+## Running the tests
 
 ```bash
-source venv/bin/activate && pip install -r apps/api_gateway/requirements-dev.txt -r services/ai-engine/requirements.txt
-pytest tests -v                                                      # backend tests (no network, no DB)
-(cd apps/frontend && npm ci && npm test && npm run lint && npm run build)
+# Backend (Python 3.11): no network and no database needed
+python3 -m venv venv && source venv/bin/activate
+pip install -r apps/api_gateway/requirements-dev.txt -r services/ai-engine/requirements.txt -r services/mcp-servers/logs_server/requirements.txt
+pytest tests -v
 
-# Post-deploy checks through HTTPS (run from the repository root, one line each)
+# Frontend (Node version in apps/frontend/.nvmrc)
+cd apps/frontend && npm ci && npm test && npm run lint && npm run typecheck && npm run build && cd ../..
+
+# Deploy tooling and CI guards: standalone Bash tests that use fake docker/curl, nothing touches a real stack
+for t in scripts/ci/test_*.sh; do bash "$t" || break; done
+
+# Static analysis, as CI runs it
+pip install ruff==0.17.4 && ruff check .
+git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
+```
+
+CI runs all of this on every pull request, plus the dependency audits, the Trivy scans and the image builds
+([`infra/ci/README.md`](infra/ci/README.md) lists every job and how to reproduce it). Against a running stack, two
+checks go through HTTPS the way a client does:
+
+```bash
+# Post-deploy smoke test (read-only requests; the deploy runs the same script on the host)
 SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/health SMOKE_PROTECTED_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
-E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt   # asks for a dashboard user's credentials
+# End to end: HTTP redirect, login, a ticket over HTTPS and the agent events over WSS (asks for a dashboard user's credentials)
+E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
 ```
 
 ### Current limitations
