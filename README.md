@@ -111,6 +111,85 @@ flowchart LR
 - `docker-compose.dev-db.yml` is an optional development override that publishes PostgreSQL on the host loopback only; it is
   not used in production.
 
+## CI/CD pipeline
+
+A merge to `main` is built, scanned, published and deployed without a manual step. GitHub never holds a way into the host:
+the self-hosted runner only leaves a request, and the host pulls and applies the release itself.
+
+```mermaid
+flowchart TD
+    pr(["Pull request to main or develop"]) -.-> jobs
+    push(["Push to main"]) --> jobs
+    push --> wait
+
+    subgraph ci["ci.yml, GitHub-hosted runners"]
+        direction TB
+        jobs["Parallel jobs"]
+        tests["Tests<br/>pytest, vitest"]
+        lint["Lint and types<br/>ruff, oxlint, tsc, shellcheck"]
+        scans["Security scans<br/>pip-audit, npm audit,<br/>Trivy config"]
+        build["Build the 4 images<br/>and Trivy image scan"]
+        guards["Compose, runner and<br/>deploy-script guards"]
+        gate{{"ci gate<br/>every job succeeded"}}
+        jobs --> tests & lint & scans & build & guards
+        tests & lint & scans & build & guards --> gate
+    end
+
+    gate -->|"push to main only"| publish["publish<br/>push the 4 images to GHCR<br/>tag = full commit SHA"]
+
+    subgraph cd["deploy.yml"]
+        direction TB
+        wait["wait-for-ci, GitHub-hosted<br/>polls the CI run of the same SHA"]
+        request["deploy job on the self-hosted runner<br/>environment: production<br/>writes the request into the inbox"]
+        wait -->|"ci and publish succeeded"| request
+    end
+
+    publish -.->|"images must exist"| wait
+    wait -->|"CI red, cancelled or missing"| stop(["Nothing deployed,<br/>the host is never asked"])
+
+    subgraph host["Host: systemd path unit triggers deploy.sh as user autoops"]
+        direction TB
+        validate["Validate the request<br/>strict parser, SHA is on main and not older than the running release,<br/>the 4 images exist in GHCR"]
+        pull["docker compose pull"]
+        backup["pg_dump backup"]
+        migrate["Alembic migration"]
+        apply["Point of no return<br/>set IMAGE_TAG, compose up --wait"]
+        health{"Health check<br/>then smoke test over HTTPS"}
+        ok(["succeeded"])
+        rollback["Roll back to the previous tag<br/>and probe again"]
+        rolled(["rolled_back"])
+        failed(["failed<br/>nothing applied, or the stack needs attention"])
+        validate --> pull --> backup --> migrate --> apply --> health
+        health -->|"pass"| ok
+        health -->|"fail"| rollback
+        rollback -->|"healthy"| rolled
+        rollback -->|"unhealthy"| failed
+        validate -.->|"rejected"| failed
+        pull -.->|"error"| failed
+        backup -.->|"error"| failed
+        migrate -.->|"error"| failed
+    end
+
+    request ==>|"inbox, read-write"| validate
+    ok -.->|"outbox status, read-only"| result
+    rolled -.-> result
+    failed -.-> result
+    result(["Job result:<br/>green, or red with the reason"])
+```
+
+- **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs on pull requests and on pushes to `main` and `develop`. Only a push to
+  `main` reaches `publish`, the only job with a write token. The aggregate `ci` job is the single status that branch
+  protection requires. Job-by-job detail is in [`infra/ci/README.md`](infra/ci/README.md).
+- **Images** are tagged with the full commit SHA only; there is no `latest`. A rollback is another SHA.
+- **`deploy.yml`** starts on the same push and its first job waits for the `ci` and `publish` jobs of that commit
+  (polling every 20 s, up to 30 min). Deploys are serialized and a deploy in flight is never cancelled.
+- **The host** validates the request as untrusted input, takes a database backup before migrating, and only rewrites
+  `IMAGE_TAG` after pull, backup and migration succeeded. The health probe and an HTTPS smoke test
+  ([`smoke_test.sh`](scripts/ops/smoke_test.sh)) gate the release; a failure rolls back to the previous tag. A rollback
+  restores **images only**: migrations are not reverted, so schema changes must be backward compatible.
+- **Outcomes:** `succeeded`, `rolled_back`, `failed`, or no answer in time. Exit codes, status format, the threat model and
+  the drill log are in [`infra/deploy/README.md`](infra/deploy/README.md).
+
 ## Tech stack
 
 | Layer | Technology |
