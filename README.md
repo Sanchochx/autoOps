@@ -1,43 +1,305 @@
 # AutoOps
 
-Self-hosted multi-agent SRE platform. It is an autonomous technical support system (Tier-1) that receives and classifies incident tickets, investigates the root cause by querying logs, metrics and databases through isolated Model Context Protocol (MCP) servers, and proposes automatic or human-supervised remediation plans (Human-in-the-Loop, HITL).
+Self-hosted, multi-agent SRE platform. AutoOps is a Tier-1 technical-support system: an operator opens an incident
+ticket in a web dashboard, a [LangGraph](https://langchain-ai.github.io/langgraph/) pipeline of two AI agents
+classifies its severity and proposes a root-cause analysis, and the reasoning is streamed to the browser while it
+happens. The platform around it is the other half of the project: hardened containers on isolated networks, HTTPS behind
+a single reverse proxy, a CI pipeline with security scans, and pull-based continuous delivery with automatic rollback
+onto a hardened Ubuntu host.
 
-Three agents orchestrated with LangGraph:
+> **Scope, honestly.** This README describes what exists in the repository today. The agents reason only over the text of
+> the ticket, the logs MCP server serves simulated data and nothing calls it yet, and the Executor / human-approval
+> agent is not built. See [Known limitations](#known-limitations) and the [Roadmap](#roadmap).
 
-1. **Triage:** classifies severity and routes the ticket.
-2. **Investigator:** inspects logs and metrics through MCP tools.
-3. **Executor:** generates mitigation plans and manages HITL approvals.
+<!-- SCREENSHOT: dashboard overview (ticket table and agent console), full width. Add as docs/images/dashboard.png -->
+
+## How a ticket flows
+
+A ticket is created with a title and a description. Everything after that happens in the background, and the dashboard
+follows it over REST (ticket table) and a WebSocket (agent console).
+
+| Status | When | What happened |
+|--------|------|---------------|
+| **Open** | `POST /api/v1/tickets` returns `201` | The ticket is stored with a placeholder severity (`medium`; a `severity` sent by the client is ignored). The request does not wait for the agents; a background task starts. |
+| **Investigating** | The task picks the ticket up | The graph runs: the **Triage agent** answers with one of `low`, `medium`, `high` or `critical` (an unrecognizable answer falls back to `medium`), then the **Investigator agent** receives the description plus that severity and writes root-cause hypotheses and what to check next. |
+| **Escalated** | The graph finishes | The final severity and the Investigator's analysis are persisted (they survive a page reload) and the ticket is handed to a human. |
+
+If the model call fails, the ticket returns to **Open**, its analysis is cleared and the console shows an error event.
+
+While the graph runs, each step is broadcast as a JSON event (`ai_event`, with the node name and a message) to every
+authenticated client connected to `/ws/stream`. The dashboard's agent console renders them live, and the ticket table
+refreshes by polling (`VITE_TICKETS_POLL_INTERVAL_MS`, default 5 s).
+
+```text
+open ──► investigating ──► escalated
+  ▲            │
+  └── on failure (analysis cleared)
+```
+
+- The LangGraph graph is linear: `START → triage_node → investigator_node → END`
+  ([`graph.py`](services/ai-engine/ai_engine/graph.py)). It runs **in-process inside the `api-gateway` container**; there
+  is no separate AI-engine service.
+- The Investigator has an injection point for technical context (logs, metrics) coming from MCP servers, but the gateway
+  does not pass one today, so it works from the ticket text alone.
+- The **logs MCP server** ([`services/mcp-servers/logs_server`](services/mcp-servers/README.md)) is deployed and reachable
+  from the gateway over a private network. It exposes two read-only tools, `get_system_logs` and `get_db_metrics`, that
+  return **simulated** data. Nothing calls them yet.
+- `pending_approval` and `resolved` exist in the ticket model but no agent sets them.
+
+<!-- SCREENSHOT: ticket creation form and a ticket moving Open -> Investigating -> Escalated. Add as docs/images/ticket-flow.png -->
+<!-- SCREENSHOT: agent console streaming the Triage and Investigator reasoning. Add as docs/images/agent-console.png -->
+<!-- SCREENSHOT: the analysis dialog of an escalated ticket. Add as docs/images/analysis.png -->
+
+## Architecture
+
+Everything runs from one Compose file ([`docker-compose.yml`](docker-compose.yml)). **Traefik is the only service that
+publishes host ports**; the dashboard and the API share one origin behind it.
+
+```mermaid
+flowchart LR
+    user(["Browser"])
+    llm(["LLM API<br/>OpenAI-compatible"])
+    gh(["GitHub / GHCR"])
+
+    subgraph edge_net["edge_net: bridge, NOT internal (Internet egress)"]
+        traefik["Traefik<br/>HTTPS + HSTS<br/>the only published ports"]
+        frontend["frontend<br/>Nginx serving the React build"]
+    end
+
+    gateway["api-gateway<br/>FastAPI REST + WebSocket<br/>LangGraph agents in-process<br/>member of edge_net, backend_net and mcp_net"]
+
+    subgraph backend_net["backend_net: internal"]
+        postgres[("PostgreSQL")]
+    end
+
+    subgraph mcp_net["mcp_net: internal"]
+        mcp["mcp-logs<br/>MCP server, simulated data"]
+    end
+
+    subgraph runner_net["runner_net: separate Compose project, Internet egress only"]
+        runner["self-hosted runner<br/>no Docker socket"]
+    end
+
+    spool[["deploy spool on the host<br/>inbox rw / outbox ro"]]
+
+    user -->|"HTTP 80 redirects to HTTPS 443"| traefik
+    traefik -->|"/"| frontend
+    traefik -->|"/api and /ws"| gateway
+    gateway --> postgres
+    gateway -.->|"reachable, not called yet"| mcp
+    gateway -->|"reasoning requests"| llm
+    runner -->|"outbound HTTPS"| gh
+    runner -->|"writes the request"| spool
+    spool -.->|"status, read-only"| runner
+```
+
+| Network | Internal | Members | Why |
+|---------|----------|---------|-----|
+| `edge_net` | no | `traefik`, `frontend`, `api-gateway` | The only network with Internet egress for the stack: the gateway needs the LLM API, and Traefik needs ACME when `TLS_MODE=acme`. Traefik has a fixed address here, and it is the only peer whose `X-Forwarded-*` headers the gateway trusts. |
+| `backend_net` | **yes** | `postgres`, `api-gateway`, and the `migrate` job | PostgreSQL has no route to the Internet or to the host. |
+| `mcp_net` | **yes** | `mcp-logs`, `api-gateway` | The MCP server is reachable only from the gateway. |
+| `runner_net` | no | the self-hosted runner | Defined in [`infra/runner/docker-compose.yml`](infra/runner/docker-compose.yml), a Compose project of its own, so a runner failure never touches the stack. It shares no network with the application. |
+
+- **Routing:** `Host(DOMAIN)` is the only host Traefik answers. `/api` and `/ws` go to the gateway (REST under
+  `/api/v1`, WebSocket at `/ws/stream`); everything else goes to the frontend
+  ([`routes.yml`](infra/traefik/dynamic/routes.yml)). Details in [`infra/traefik/README.md`](infra/traefik/README.md).
+- **The runner never touches Docker.** It leaves a deploy request in a spool directory and the host, not GitHub, validates
+  and applies it. See [`infra/runner/README.md`](infra/runner/README.md) and [`infra/deploy/README.md`](infra/deploy/README.md).
+- **MCP isolation is a design rule** ([`.claude/CLAUDE.md`](.claude/CLAUDE.md)): the AI engine must not connect to PostgreSQL
+  or run OS commands, only reach infrastructure through MCP servers. Today the gateway persists tickets itself and the agents
+  only receive the ticket text, so the rule holds trivially; the MCP path is where it will matter once the Investigator uses it.
+- `docker-compose.dev-db.yml` is an optional development override that publishes PostgreSQL on the host loopback only; it is
+  not used in production.
+
+## CI/CD pipeline
+
+A merge to `main` is built, scanned, published and deployed without a manual step. GitHub never holds a way into the host:
+the self-hosted runner only leaves a request, and the host pulls and applies the release itself.
+
+```mermaid
+flowchart TD
+    pr(["Pull request to main or develop"]) -.-> jobs
+    push(["Push to main"]) --> jobs
+    push --> wait
+
+    subgraph ci["ci.yml, GitHub-hosted runners"]
+        direction TB
+        jobs["Parallel jobs"]
+        tests["Tests<br/>pytest, vitest"]
+        lint["Lint and types<br/>ruff, oxlint, tsc, shellcheck"]
+        scans["Security scans<br/>pip-audit, npm audit,<br/>Trivy config"]
+        build["Build the 4 images<br/>and Trivy image scan"]
+        guards["Compose, runner and<br/>deploy-script guards"]
+        gate{{"ci gate<br/>every job succeeded"}}
+        jobs --> tests & lint & scans & build & guards
+        tests & lint & scans & build & guards --> gate
+    end
+
+    gate -->|"push to main only"| publish["publish<br/>push the 4 images to GHCR<br/>tag = full commit SHA"]
+
+    subgraph cd["deploy.yml"]
+        direction TB
+        wait["wait-for-ci, GitHub-hosted<br/>polls the CI run of the same SHA"]
+        request["deploy job on the self-hosted runner<br/>environment: production<br/>writes the request into the inbox"]
+        wait -->|"ci and publish succeeded"| request
+    end
+
+    publish -.->|"images must exist"| wait
+    wait -->|"CI red, cancelled or missing"| stop(["Nothing deployed,<br/>the host is never asked"])
+
+    subgraph host["Host: systemd path unit triggers deploy.sh as user autoops"]
+        direction TB
+        validate["Validate the request<br/>strict parser, SHA is on main and not older than the running release,<br/>the 4 images exist in GHCR"]
+        pull["docker compose pull"]
+        backup["pg_dump backup"]
+        migrate["Alembic migration"]
+        apply["Point of no return<br/>set IMAGE_TAG, compose up --wait"]
+        health{"Health check<br/>then smoke test over HTTPS"}
+        ok(["succeeded"])
+        rollback["Roll back to the previous tag<br/>and probe again"]
+        rolled(["rolled_back"])
+        failed(["failed<br/>nothing applied, or the stack needs attention"])
+        validate --> pull --> backup --> migrate --> apply --> health
+        health -->|"pass"| ok
+        health -->|"fail"| rollback
+        rollback -->|"healthy"| rolled
+        rollback -->|"unhealthy"| failed
+        validate -.->|"rejected"| failed
+        pull -.->|"error"| failed
+        backup -.->|"error"| failed
+        migrate -.->|"error"| failed
+    end
+
+    request ==>|"inbox, read-write"| validate
+    ok -.->|"outbox status, read-only"| result
+    rolled -.-> result
+    failed -.-> result
+    result(["Job result:<br/>green, or red with the reason"])
+```
+
+- **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs on pull requests and on pushes to `main` and `develop`. Only a push to
+  `main` reaches `publish`, the only job with a write token. The aggregate `ci` job is the single status that branch
+  protection requires. Job-by-job detail is in [`infra/ci/README.md`](infra/ci/README.md).
+- **Images** are tagged with the full commit SHA only; there is no `latest`. A rollback is another SHA.
+- **`deploy.yml`** starts on the same push and its first job waits for the `ci` and `publish` jobs of that commit
+  (polling every 20 s, up to 30 min). Deploys are serialized and a deploy in flight is never cancelled.
+- **The host** validates the request as untrusted input, takes a database backup before migrating, and only rewrites
+  `IMAGE_TAG` after pull, backup and migration succeeded. The health probe and an HTTPS smoke test
+  ([`smoke_test.sh`](scripts/ops/smoke_test.sh)) gate the release; a failure rolls back to the previous tag. A rollback
+  restores **images only**: migrations are not reverted, so schema changes must be backward compatible.
+- **Outcomes:** `succeeded`, `rolled_back`, `failed`, or no answer in time. Exit codes, status format, the threat model and
+  the drill log are in [`infra/deploy/README.md`](infra/deploy/README.md).
 
 ## Tech stack
 
 | Layer | Technology |
-|------|------------|
-| Backend / API Gateway | Python 3.11+, FastAPI, Pydantic, WebSockets + REST |
-| AI engine | LangGraph + LangChain, MCP SDK |
-| Persistence | PostgreSQL, SQLAlchemy, Alembic |
-| Frontend | React + Vite + TypeScript, TailwindCSS, Zustand |
-| Infrastructure | Docker Compose, Traefik/Nginx + Let's Encrypt, GitHub Actions |
+|-------|------------|
+| Backend | Python 3.11, FastAPI (REST and WebSocket), Pydantic, SQLAlchemy (async, asyncpg), Alembic, argon2-cffi, PyJWT |
+| Agents | LangGraph, LangChain (`ChatOpenAI`, any OpenAI-compatible endpoint), MCP Python SDK (FastMCP over HTTP + SSE) |
+| Data | PostgreSQL 15 |
+| Frontend | React, Vite, TypeScript (strict), TailwindCSS, Zustand; Vitest and oxlint |
+| Edge | Traefik v3 (file provider, no Docker socket), self-signed local CA or Let's Encrypt (HTTP-01) |
+| Containers | Docker Engine and Compose; multi-stage images published to GHCR |
+| CI/CD | GitHub Actions, a containerized self-hosted runner, systemd units on the host |
+| Host | Ubuntu Server 26.04, idempotent Bash provisioning (no configuration-management tool), UFW, fail2ban, OpenSSH |
+| Tests | pytest, Vitest, and Bash test scripts with fake `docker`/`curl` for the deploy tooling |
+
+## Security decisions
+
+Each item says where it is implemented, so it can be checked rather than trusted.
+
+**Containers**
+- Every application container drops all capabilities and sets `no-new-privileges`. The gateway, frontend, MCP server,
+  Traefik and the migration job also run with a read-only root filesystem (writable `tmpfs` only where needed). PostgreSQL
+  keeps just the five capabilities it needs to start and drop to its own user. See `x-hardening` in
+  [`docker-compose.yml`](docker-compose.yml).
+- Images run as non-root users (gateway and MCP server `10001`, Traefik `65532`, unprivileged Nginx on port 8080) and are
+  multi-stage. Build tools (`pip`, `setuptools`, `wheel`) are removed from the Python runtime stages.
+- The Docker socket is not mounted into any container. Traefik reads its routes from files baked into its image.
+- Docker daemon defaults are hardened and log-rotated ([`infra/docker/`](infra/docker/README.md)).
+
+**Network**
+- `backend_net` (PostgreSQL) and `mcp_net` (MCP server) are `internal`: no Internet and no host access. Only Traefik
+  publishes host ports; see the [network table](#architecture).
+- The host firewall is deny-by-default and also covers Docker-published ports through the `DOCKER-USER` chain, because
+  UFW alone does not filter them ([`infra/firewall/`](infra/firewall/README.md)).
+
+**Transport**
+- HTTP is permanently redirected to HTTPS. `Strict-Transport-Security` is set (`HSTS_MAX_AGE_SECONDS`, one year by default,
+  without `includeSubDomains` or `preload`). Traefik answers only for `Host(DOMAIN)`.
+- `TLS_MODE=selfsigned` (a local CA, see [`infra/traefik/README.md`](infra/traefik/README.md)) or `TLS_MODE=acme`
+  (Let's Encrypt). The mode has no default on purpose, and CI checks that the Compose file rejects a missing value.
+- [`scripts/ops/validate_env.sh`](scripts/ops/validate_env.sh) refuses to start a production stack with placeholder
+  secrets, a weak `JWT_SECRET`, incomplete TLS settings or an unpinned image tag.
+
+**Authentication and abuse control**
+- Passwords are stored as argon2id hashes. Login returns a short-lived JWT (HS256, `JWT_TTL_MINUTES`, default 60 minutes).
+  Every REST route except the health checks requires it. `JWT_SECRET` has no default and must be at least 32 characters.
+- The WebSocket takes its token as the **first message**, not in the URL, because the proxy logs URLs. An invalid or
+  expired token closes the socket with code `4401`.
+- A wrong username and a wrong password return the same `401`. Failed logins are rate limited per client IP (`429` with
+  `Retry-After`). Behind Traefik the real IP comes from `X-Forwarded-For`, trusted only from Traefik's fixed address.
+  The limiter is in memory ([limitation](#known-limitations)). Details: [Authentication](#authentication).
+
+**Supply chain and CI** ([`infra/ci/README.md`](infra/ci/README.md#security-scans))
+- Scans that block the merge: **ruff** (including the bandit `S` rules), **pip-audit** on the three requirements files,
+  **npm audit** from `high` upwards on production dependencies, **Trivy** on the four built images (HIGH/CRITICAL with a
+  fix available) and **Trivy config** on every Dockerfile. The Trivy binary is pinned. An ignore entry must carry a written
+  justification, a review rule stated in [`.trivyignore`](.trivyignore).
+- Every third-party GitHub Action is pinned to a full commit SHA. Workflows default to read-only permissions; only `publish`
+  has `packages: write`. There is no `pull_request_target`, and no job persists the checkout credentials.
+- Shell scripts are linted with shellcheck, and the Compose and workflow rules that protect the runner are enforced by
+  guards that have their own tests proving they fail when weakened.
+
+**Deployment path** ([`infra/runner/README.md`](infra/runner/README.md), [`infra/deploy/README.md`](infra/deploy/README.md))
+- The runner executes workflow code, so it is treated as untrusted: no inbound ports, no Docker socket or client, no
+  capabilities, a read-only root and a `tmpfs` workspace. Its only door to the host is a spool with a read-write inbox
+  and a read-only outbox, so it cannot forge a result.
+- A workflow that uses the runner may only be triggered by `workflow_dispatch` or a push to `main` and must declare the
+  `production` environment (enforced by [`check_runner_workflows.sh`](scripts/ci/check_runner_workflows.sh)).
+- The host re-derives everything from public data: the request is parsed strictly (256 bytes, two keys, hex SHA), the SHA
+  must be on `main` and not older than the running release, and the images must exist in the registry before anything is
+  pulled.
+
+**Host** ([`infra/README.md`](infra/README.md))
+- SSH: public keys only, no root login, an explicit `AllowUsers`, `MaxAuthTries 3`, modern key exchange and ciphers, no
+  forwarding. Applying it arms an automatic rollback so a mistake cannot lock the operator out
+  ([`infra/ssh/`](infra/ssh/README.md)).
+- UFW deny-by-default; the only public ports are the proxy's. fail2ban bans repeated SSH failures with progressive ban
+  times ([`infra/fail2ban/`](infra/fail2ban/README.md)). A kernel `sysctl` baseline and unattended OS updates.
+- `scripts/provision/verify.sh` re-checks every control and exits non-zero on drift; every provisioning step has a matching
+  check.
+
+**Data**
+- `pg_dump` backups on a systemd timer with retention, plus a dump before every deploy migration. Restore is destructive,
+  asks for confirmation and runs in a single transaction ([`infra/backup/`](infra/backup/README.md)).
+
+Secrets live only in the git-ignored `.env`. The repository contains placeholders in [`.env.example`](.env.example), and CI
+runs without any secret of its own.
 
 ## Monorepo structure
 
 ```
 autoops/
 ├── apps/
-│   ├── frontend/        # Admin dashboard (React + Vite + TypeScript + TailwindCSS)
-│   └── api_gateway/     # FastAPI: REST, WebSockets and authentication
+│   ├── frontend/        # Dashboard (React + Vite + TypeScript + TailwindCSS), served by Nginx
+│   └── api_gateway/     # FastAPI: REST, WebSocket, authentication, Alembic migrations
 ├── services/
-│   ├── ai-engine/       # LangGraph agents (Triage, Investigator, Executor)
-│   └── mcp-servers/     # MCP servers (DB, logs and metrics isolation)
+│   ├── ai-engine/       # LangGraph agents (Triage, Investigator); imported in-process by the gateway
+│   └── mcp-servers/     # logs_server: MCP server with simulated logs and metrics (its own image)
+├── tests/               # pytest suite (gateway, auth, WebSocket, agent graph)
 ├── scripts/
 │   ├── provision/       # Idempotent host bootstrap (bootstrap.sh), verify.sh and per-control checks
-│   ├── ops/             # Operational scripts (PostgreSQL backup and restore, env validation)
-│   └── ci/              # Guards run by CI (self-hosted runner lock-down and allowed workflows)
-├── infra/               # Host configuration templates and docs (SSH, UFW, Docker, systemd, backups, CI, self-hosted runner)
+│   ├── ops/             # Backup and restore, env validation, host-side deploy, smoke test, user creation
+│   └── ci/              # Deploy request script, CI guards and their Bash tests
+├── infra/               # Host configuration templates and docs: SSH, UFW, fail2ban, Docker, systemd, backups,
+│                        # Traefik, CI, self-hosted runner, deploy
+├── .github/workflows/   # ci.yml, deploy.yml, runner-smoke.yml
 ├── .claude/
 │   ├── CLAUDE.md        # Project architecture and standards
 │   └── context/         # SDD documentation (plan, user stories, summaries)
+├── docker-compose.yml   # The application stack (Traefik, frontend, api-gateway, postgres, mcp-logs, migrate)
 ├── .env.example         # Centralized environment variable template
-├── .gitignore
 └── README.md
 ```
 
@@ -97,31 +359,37 @@ Escalated**, with the Investigator's analysis in the table (persisted in the dat
 If the AI call fails, the ticket returns to **Open** and the console shows the error; check
 `docker compose logs api-gateway`.
 
-### Verify it works
+## Running the tests
 
 ```bash
-source venv/bin/activate && pip install -r apps/api_gateway/requirements-dev.txt -r services/ai-engine/requirements.txt
-pytest tests -v                                                      # backend tests (no network, no DB)
-(cd apps/frontend && npm ci && npm test && npm run lint && npm run build)
+# Backend (Python 3.11): no network and no database needed
+python3 -m venv venv && source venv/bin/activate
+pip install -r apps/api_gateway/requirements-dev.txt -r services/ai-engine/requirements.txt -r services/mcp-servers/logs_server/requirements.txt
+pytest tests -v
 
-# Post-deploy checks through HTTPS (run from the repository root, one line each)
-SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/health SMOKE_PROTECTED_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
-E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt   # asks for a dashboard user's credentials
+# Frontend (Node version in apps/frontend/.nvmrc)
+cd apps/frontend && npm ci && npm test && npm run lint && npm run typecheck && npm run build && cd ../..
+
+# Deploy tooling and CI guards: standalone Bash tests that use fake docker/curl, nothing touches a real stack
+for t in scripts/ci/test_*.sh; do bash "$t" || break; done
+
+# Static analysis, as CI runs it
+pip install ruff==0.17.4 && ruff check .
+git ls-files -z '*.sh' | xargs -0 shellcheck --severity=warning
 ```
 
-### Current limitations
+CI runs all of this on every pull request, plus the dependency audits, the Trivy scans and the image builds
+([`infra/ci/README.md`](infra/ci/README.md) lists every job and how to reproduce it). Against a running stack, two
+checks go through HTTPS the way a client does:
 
-- The MCP logs server (`services/mcp-servers/logs_server`) serves **simulated** data, and the Investigator does **not**
-  query it yet: its analysis is based only on the text of the ticket. Paste real logs and stack traces into the description.
-- There is no Executor agent or approval flow (HITL) yet: a successfully investigated ticket is `escalated` to a human;
-  `pending_approval` and `resolved` are not used by the agents.
-- Authentication is a single role: every signed-in user can do everything (including `DELETE /api/v1/tickets`).
-  Tokens last `JWT_TTL_MINUTES` (default 60) and there is no refresh token: the dashboard asks to sign in again when
-  one expires. The token is kept in memory only, so reloading the page also asks for it.
-- The failed-login limiter is in memory (per client IP, `LOGIN_MAX_ATTEMPTS` per `LOGIN_WINDOW_SECONDS`): enough for the
-  single gateway container; several replicas would need a shared store.
+```bash
+# Post-deploy smoke test (read-only requests; the deploy runs the same script on the host)
+SMOKE_DOMAIN=autoops.local SMOKE_HTTPS_PORT=443 SMOKE_HEALTH_PATH=/api/v1/health SMOKE_PROTECTED_PATH=/api/v1/tickets SMOKE_CACERT=tls/ca/ca.crt scripts/ops/smoke_test.sh
+# End to end: HTTP redirect, login, a ticket over HTTPS and the agent events over WSS (asks for a dashboard user's credentials)
+E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt
+```
 
-### Authentication
+## Authentication
 
 - `POST /api/v1/auth/login` (`{"username", "password"}`) returns a short-lived Bearer token. Every other REST endpoint
   requires `Authorization: Bearer <token>`, except the public health checks (`/api/v1/health`, and `/health` inside the
@@ -136,7 +404,33 @@ E2E_CONNECT_ADDR=127.0.0.1 python scripts/ops/e2e_https.py --ca tls/ca/ca.crt   
   `validate_env.sh` enforces it in production). There are no user credentials in `.env`.
 - Users: `scripts/ops/create_user.sh` (interactive; also resets the password of an existing user).
 
-### Run published images (no local build)
+## Deploying
+
+AutoOps is built and exercised on an Ubuntu Server 26.04 VM (VirtualBox); the host docs below record the drills that were run.
+The pieces are independent and each one has its own README, which is the source of truth; this is the map.
+
+1. **Provision the host** (users, SSH, fail2ban, UFW, Docker, systemd units, optional runner). Idempotent, and
+   `verify.sh` fails if any control has drifted. The full cycle, variables and the SSH lock-out protection are in
+   [`infra/README.md`](infra/README.md).
+   ```bash
+   sudo ./scripts/provision/bootstrap.sh --env-file provision.env
+   sudo ./scripts/provision/verify.sh --env-file provision.env
+   ```
+2. **Choose the certificate source.** `TLS_MODE=selfsigned` for a local CA, `TLS_MODE=acme` for Let's Encrypt (needs a
+   public `DOMAIN` and ports 80 and 443 reachable). See [`infra/traefik/README.md`](infra/traefik/README.md).
+3. **Optional: register the self-hosted runner** by setting `RUNNER_REPO_URL` in `.env`. See
+   [`infra/runner/README.md`](infra/runner/README.md).
+4. **Continuous delivery.** With the runner in place, a push to `main` with a green CI deploys itself: wait for CI and the
+   published images, hand a request to the host, apply with a backup, migration, health check and smoke test, roll back on
+   failure. The flow is the [pipeline above](#cicd-pipeline); the host-side contract, status codes, what to do on each red
+   run, manual deploys and rollbacks are in [`infra/deploy/README.md`](infra/deploy/README.md#continuous-delivery-us-cicd-005).
+   The GitHub settings that are not in the repository (the `production` environment, branch protection on `ci`) are listed in
+   [`infra/ci/README.md`](infra/ci/README.md#branch-protection-manual-github-settings-are-not-in-the-repository).
+5. **Backups and restore:** [`infra/backup/README.md`](infra/backup/README.md).
+
+The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
+
+### Running a published commit by hand
 
 CI publishes the images to GHCR from `main`, tagged with the commit SHA. To run a given commit:
 
@@ -159,30 +453,59 @@ alembic -c apps/api_gateway/alembic.ini revision --autogenerate -m "description"
 
 Requires `DATABASE_URL` (`postgresql+asyncpg://...`) in `.env`.
 
-### Host provisioning (Ubuntu Server 26.04)
+## Known limitations
 
-```bash
-sudo ./scripts/provision/bootstrap.sh --env-file provision.env   # idempotent
-sudo ./scripts/provision/verify.sh --env-file provision.env      # OK/FAIL table, exit 1 on any failure
-```
+**Agents**
+- The agents reason **only over the text of the ticket** (and the severity the Triage agent assigned). The Investigator does
+  not read logs or metrics, so its analysis is a set of hypotheses, not a diagnosis. Paste real logs and stack traces into the
+  ticket description to give it something to work with.
+- The logs MCP server returns **simulated** data and nothing calls it. There is no database MCP server yet.
+- There is no Executor agent and no human-approval (HITL) flow: nothing proposes or applies a remediation. An investigated
+  ticket is simply `escalated`.
+- The tests drive the graph with a fake model; there is no evaluation of real model output quality. An unrecognizable
+  triage answer silently becomes `medium`.
+- Agents run as background tasks inside the gateway process. If that process stops mid-run, the code has no recovery step
+  and the ticket stays `investigating`.
 
-See [`infra/README.md`](infra/README.md) for the full cycle (variables, SSH confirmation, reboot test).
+**Access control**
+- A single role: every signed-in user can do everything, including `DELETE /api/v1/tickets` (the dashboard asks for
+  confirmation first).
+- Tokens last `JWT_TTL_MINUTES` (default 60) with no refresh token, and the dashboard keeps the token in memory only, so a
+  reload asks for a new sign-in.
+- The failed-login rate limiter is **in memory**, per client IP and per process: it resets on restart and would not be shared
+  across several gateway replicas, which would need a shared store.
 
-### Self-hosted runner (optional, for continuous deployment)
+**Operations**
+- One host and one instance of each service: no high availability.
+- Backups stay on the host's disk unless you copy them elsewhere; there is no off-host copy, encryption or point-in-time
+  recovery ([`infra/backup/README.md`](infra/backup/README.md)).
+- A rollback restores images, not the schema; migrations must be written to be backward compatible
+  ([`infra/deploy/README.md`](infra/deploy/README.md#the-schema-limit)).
+- The self-hosted runner is not ephemeral; that trade-off and its mitigations are explained in
+  [`infra/runner/README.md`](infra/runner/README.md).
+- Container base images are pinned by tag (for example `python:3.11-slim`), not by digest; the Trivy scans are what catches
+  a vulnerable rebuild.
+- IPv4 only. The default certificate source is a local CA that each client must trust by hand.
+- The external port-scan evidence for the firewall is documented as only half confirmed
+  ([`infra/firewall/README.md`](infra/firewall/README.md#external-validation-us-proxy-003-ac-5)).
+- Linux only: the provisioning and operations scripts are Bash.
 
-With `RUNNER_REPO_URL` set in `.env`, `bootstrap.sh` also installs a containerized GitHub Actions runner
-(`autoops-runner.service`, label `autoops-prod`): outbound connections only, no Docker socket, no access to the stack's
-networks, and usable only by `workflow_dispatch` / push-to-`main` workflows. See
-[`infra/runner/README.md`](infra/runner/README.md). The runner never touches Docker: it leaves a deploy request that the host
-validates and applies itself, with automatic rollback, see [`infra/deploy/README.md`](infra/deploy/README.md).
+## Roadmap
 
-### Continuous delivery
+Nothing in this section exists in the repository yet. It is the planned direction, not a description of the current system.
 
-A push to `main` with a green CI is deployed automatically (`.github/workflows/deploy.yml`): the workflow waits for the CI and
-the published images, asks the host through the runner, and the host applies the release, runs a smoke test over HTTPS and rolls
-back if it fails. See [`infra/deploy/README.md`](infra/deploy/README.md#continuous-delivery-us-cicd-005).
+**Infrastructure and observability (planned)**
+- [ ] Prometheus and Grafana for metrics and dashboards of the stack and the agents.
+- [ ] Ansible to replace the Bash host provisioning with declarative, testable roles.
+- [ ] Terraform to create the host itself (the provisioning scripts explicitly leave instance creation out of scope).
+- [ ] AWS as a deployment target.
+- [ ] Kubernetes as an orchestration option beyond a single Docker Compose host.
 
-The definitive commands are documented in [`.claude/CLAUDE.md`](.claude/CLAUDE.md#key-commands).
+**Product (designed in [`.claude/CLAUDE.md`](.claude/CLAUDE.md), not built)**
+- [ ] The Investigator queries MCP tools for logs and metrics (the injection point exists in
+  [`nodes.py`](services/ai-engine/ai_engine/nodes.py)); a database MCP server; replacing simulated data with real sources.
+- [ ] The Executor agent: mitigation plans with human-in-the-loop approval (`pending_approval` and `resolved` states).
+- [ ] Role-based access, and a shared store for the login rate limiter.
 
 ## Key principles
 
