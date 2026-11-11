@@ -193,12 +193,16 @@ flowchart TD
 ## Tech stack
 
 | Layer | Technology |
-|------|------------|
-| Backend / API Gateway | Python 3.11+, FastAPI, Pydantic, WebSockets + REST |
-| AI engine | LangGraph + LangChain, MCP SDK |
-| Persistence | PostgreSQL, SQLAlchemy, Alembic |
-| Frontend | React + Vite + TypeScript, TailwindCSS, Zustand |
-| Infrastructure | Docker Compose, Traefik/Nginx + Let's Encrypt, GitHub Actions |
+|-------|------------|
+| Backend | Python 3.11, FastAPI (REST and WebSocket), Pydantic, SQLAlchemy (async, asyncpg), Alembic, argon2-cffi, PyJWT |
+| Agents | LangGraph, LangChain (`ChatOpenAI`, any OpenAI-compatible endpoint), MCP Python SDK (FastMCP over HTTP + SSE) |
+| Data | PostgreSQL 15 |
+| Frontend | React, Vite, TypeScript (strict), TailwindCSS, Zustand; Vitest and oxlint |
+| Edge | Traefik v3 (file provider, no Docker socket), self-signed local CA or Let's Encrypt (HTTP-01) |
+| Containers | Docker Engine and Compose; multi-stage images published to GHCR |
+| CI/CD | GitHub Actions, a containerized self-hosted runner, systemd units on the host |
+| Host | Ubuntu Server 26.04, idempotent Bash provisioning (no configuration-management tool), UFW, fail2ban, OpenSSH |
+| Tests | pytest, Vitest, and Bash test scripts with fake `docker`/`curl` for the deploy tooling |
 
 ## Monorepo structure
 
