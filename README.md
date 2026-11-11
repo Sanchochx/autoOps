@@ -453,6 +453,60 @@ alembic -c apps/api_gateway/alembic.ini revision --autogenerate -m "description"
 
 Requires `DATABASE_URL` (`postgresql+asyncpg://...`) in `.env`.
 
+## Known limitations
+
+**Agents**
+- The agents reason **only over the text of the ticket** (and the severity the Triage agent assigned). The Investigator does
+  not read logs or metrics, so its analysis is a set of hypotheses, not a diagnosis. Paste real logs and stack traces into the
+  ticket description to give it something to work with.
+- The logs MCP server returns **simulated** data and nothing calls it. There is no database MCP server yet.
+- There is no Executor agent and no human-approval (HITL) flow: nothing proposes or applies a remediation. An investigated
+  ticket is simply `escalated`.
+- The tests drive the graph with a fake model; there is no evaluation of real model output quality. An unrecognizable
+  triage answer silently becomes `medium`.
+- Agents run as background tasks inside the gateway process. If that process stops mid-run, the code has no recovery step
+  and the ticket stays `investigating`.
+
+**Access control**
+- A single role: every signed-in user can do everything, including `DELETE /api/v1/tickets` (the dashboard asks for
+  confirmation first).
+- Tokens last `JWT_TTL_MINUTES` (default 60) with no refresh token, and the dashboard keeps the token in memory only, so a
+  reload asks for a new sign-in.
+- The failed-login rate limiter is **in memory**, per client IP and per process: it resets on restart and would not be shared
+  across several gateway replicas, which would need a shared store.
+
+**Operations**
+- One host and one instance of each service: no high availability.
+- Backups stay on the host's disk unless you copy them elsewhere; there is no off-host copy, encryption or point-in-time
+  recovery ([`infra/backup/README.md`](infra/backup/README.md)).
+- A rollback restores images, not the schema; migrations must be written to be backward compatible
+  ([`infra/deploy/README.md`](infra/deploy/README.md#the-schema-limit)).
+- The self-hosted runner is not ephemeral; that trade-off and its mitigations are explained in
+  [`infra/runner/README.md`](infra/runner/README.md).
+- Container base images are pinned by tag (for example `python:3.11-slim`), not by digest; the Trivy scans are what catches
+  a vulnerable rebuild.
+- IPv4 only. The default certificate source is a local CA that each client must trust by hand.
+- The external port-scan evidence for the firewall is documented as only half confirmed
+  ([`infra/firewall/README.md`](infra/firewall/README.md#external-validation-us-proxy-003-ac-5)).
+- Linux only: the provisioning and operations scripts are Bash.
+
+## Roadmap
+
+Nothing in this section exists in the repository yet. It is the planned direction, not a description of the current system.
+
+**Infrastructure and observability (planned)**
+- [ ] Prometheus and Grafana for metrics and dashboards of the stack and the agents.
+- [ ] Ansible to replace the Bash host provisioning with declarative, testable roles.
+- [ ] Terraform to create the host itself (the provisioning scripts explicitly leave instance creation out of scope).
+- [ ] AWS as a deployment target.
+- [ ] Kubernetes as an orchestration option beyond a single Docker Compose host.
+
+**Product (designed in [`.claude/CLAUDE.md`](.claude/CLAUDE.md), not built)**
+- [ ] The Investigator queries MCP tools for logs and metrics (the injection point exists in
+  [`nodes.py`](services/ai-engine/ai_engine/nodes.py)); a database MCP server; replacing simulated data with real sources.
+- [ ] The Executor agent: mitigation plans with human-in-the-loop approval (`pending_approval` and `resolved` states).
+- [ ] Role-based access, and a shared store for the login rate limiter.
+
 ## Key principles
 
 - **Twelve-Factor (zero hardcoding):** credentials, keys, URLs and ports are always read from environment variables (`.env`).
