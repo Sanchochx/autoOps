@@ -31,6 +31,10 @@ RUN npm run build
 # ── Stage 2: runtime ────────────────────────────────────────────
 FROM nginx:alpine AS runtime
 
+# Patch libxslt (CVE-2026-87636, CVE-2026-9947; fixed in 1.1.43-r4) until the nginx:alpine base ships it.
+# Remove this line once the `images` Trivy scan stays green without it.
+RUN apk upgrade --no-cache libxslt
+
 # Full Nginx configuration (replaces the default one, which requires root).
 # --chmod: COPY keeps the source mode, and the unprivileged `nginx` user must be able to read it
 # whatever the umask of the machine that builds the image.
