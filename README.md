@@ -204,6 +204,79 @@ flowchart TD
 | Host | Ubuntu Server 26.04, idempotent Bash provisioning (no configuration-management tool), UFW, fail2ban, OpenSSH |
 | Tests | pytest, Vitest, and Bash test scripts with fake `docker`/`curl` for the deploy tooling |
 
+## Security decisions
+
+Each item says where it is implemented, so it can be checked rather than trusted.
+
+**Containers**
+- Every application container drops all capabilities and sets `no-new-privileges`. The gateway, frontend, MCP server,
+  Traefik and the migration job also run with a read-only root filesystem (writable `tmpfs` only where needed). PostgreSQL
+  keeps just the five capabilities it needs to start and drop to its own user. See `x-hardening` in
+  [`docker-compose.yml`](docker-compose.yml).
+- Images run as non-root users (gateway and MCP server `10001`, Traefik `65532`, unprivileged Nginx on port 8080) and are
+  multi-stage. Build tools (`pip`, `setuptools`, `wheel`) are removed from the Python runtime stages.
+- The Docker socket is not mounted into any container. Traefik reads its routes from files baked into its image.
+- Docker daemon defaults are hardened and log-rotated ([`infra/docker/`](infra/docker/README.md)).
+
+**Network**
+- `backend_net` (PostgreSQL) and `mcp_net` (MCP server) are `internal`: no Internet and no host access. Only Traefik
+  publishes host ports; see the [network table](#architecture).
+- The host firewall is deny-by-default and also covers Docker-published ports through the `DOCKER-USER` chain, because
+  UFW alone does not filter them ([`infra/firewall/`](infra/firewall/README.md)).
+
+**Transport**
+- HTTP is permanently redirected to HTTPS. `Strict-Transport-Security` is set (`HSTS_MAX_AGE_SECONDS`, one year by default,
+  without `includeSubDomains` or `preload`). Traefik answers only for `Host(DOMAIN)`.
+- `TLS_MODE=selfsigned` (a local CA, see [`infra/traefik/README.md`](infra/traefik/README.md)) or `TLS_MODE=acme`
+  (Let's Encrypt). The mode has no default on purpose, and CI checks that the Compose file rejects a missing value.
+- [`scripts/ops/validate_env.sh`](scripts/ops/validate_env.sh) refuses to start a production stack with placeholder
+  secrets, a weak `JWT_SECRET`, incomplete TLS settings or an unpinned image tag.
+
+**Authentication and abuse control**
+- Passwords are stored as argon2id hashes. Login returns a short-lived JWT (HS256, `JWT_TTL_MINUTES`, default 60 minutes).
+  Every REST route except the health checks requires it. `JWT_SECRET` has no default and must be at least 32 characters.
+- The WebSocket takes its token as the **first message**, not in the URL, because the proxy logs URLs. An invalid or
+  expired token closes the socket with code `4401`.
+- A wrong username and a wrong password return the same `401`. Failed logins are rate limited per client IP (`429` with
+  `Retry-After`). Behind Traefik the real IP comes from `X-Forwarded-For`, trusted only from Traefik's fixed address.
+  The limiter is in memory ([limitation](#known-limitations)). Details: [Authentication](#authentication).
+
+**Supply chain and CI** ([`infra/ci/README.md`](infra/ci/README.md#security-scans))
+- Scans that block the merge: **ruff** (including the bandit `S` rules), **pip-audit** on the three requirements files,
+  **npm audit** from `high` upwards on production dependencies, **Trivy** on the four built images (HIGH/CRITICAL with a
+  fix available) and **Trivy config** on every Dockerfile. The Trivy binary is pinned. An ignore entry must carry a written
+  justification, a review rule stated in [`.trivyignore`](.trivyignore).
+- Every third-party GitHub Action is pinned to a full commit SHA. Workflows default to read-only permissions; only `publish`
+  has `packages: write`. There is no `pull_request_target`, and no job persists the checkout credentials.
+- Shell scripts are linted with shellcheck, and the Compose and workflow rules that protect the runner are enforced by
+  guards that have their own tests proving they fail when weakened.
+
+**Deployment path** ([`infra/runner/README.md`](infra/runner/README.md), [`infra/deploy/README.md`](infra/deploy/README.md))
+- The runner executes workflow code, so it is treated as untrusted: no inbound ports, no Docker socket or client, no
+  capabilities, a read-only root and a `tmpfs` workspace. Its only door to the host is a spool with a read-write inbox
+  and a read-only outbox, so it cannot forge a result.
+- A workflow that uses the runner may only be triggered by `workflow_dispatch` or a push to `main` and must declare the
+  `production` environment (enforced by [`check_runner_workflows.sh`](scripts/ci/check_runner_workflows.sh)).
+- The host re-derives everything from public data: the request is parsed strictly (256 bytes, two keys, hex SHA), the SHA
+  must be on `main` and not older than the running release, and the images must exist in the registry before anything is
+  pulled.
+
+**Host** ([`infra/README.md`](infra/README.md))
+- SSH: public keys only, no root login, an explicit `AllowUsers`, `MaxAuthTries 3`, modern key exchange and ciphers, no
+  forwarding. Applying it arms an automatic rollback so a mistake cannot lock the operator out
+  ([`infra/ssh/`](infra/ssh/README.md)).
+- UFW deny-by-default; the only public ports are the proxy's. fail2ban bans repeated SSH failures with progressive ban
+  times ([`infra/fail2ban/`](infra/fail2ban/README.md)). A kernel `sysctl` baseline and unattended OS updates.
+- `scripts/provision/verify.sh` re-checks every control and exits non-zero on drift; every provisioning step has a matching
+  check.
+
+**Data**
+- `pg_dump` backups on a systemd timer with retention, plus a dump before every deploy migration. Restore is destructive,
+  asks for confirmation and runs in a single transaction ([`infra/backup/`](infra/backup/README.md)).
+
+Secrets live only in the git-ignored `.env`. The repository contains placeholders in [`.env.example`](.env.example), and CI
+runs without any secret of its own.
+
 ## Monorepo structure
 
 ```
